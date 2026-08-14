@@ -28,3 +28,4 @@ def inicio():
       <h2>{resultado}</h2>
     </div>
     """
+    
