@@ -26,12 +26,12 @@ def inicio():
     return """
     <style>
     body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0ea5e9, #0284c7); padding: 50px; }
-   .caja { background: white; padding: 40px; border-radius: 15px; max-width: 600px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+  .caja { background: white; padding: 40px; border-radius: 15px; max-width: 600px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
     h1 { color: #0284c7; font-size: 36px; margin:0 }
-   .slogan { color:#666; margin-bottom:25px }
+  .slogan { color:#666; margin-bottom:25px }
     </style>
     <div class="caja">
-        <h1>📊 DatoArriendo</h1>
+        <h1>📊 Datoarriendo</h1>
         <p class="slogan">El Datacredito de Arrendatarios en Colombia</p>
         <form method="POST">
             <input name="cc" placeholder="Ingresa número de CC" required style="padding:12px; width: 250px; border:2px solid #ddd; border-radius:8px">
