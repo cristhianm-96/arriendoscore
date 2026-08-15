@@ -38,9 +38,8 @@ HTML = """
 <body>
     <div class="card-principal">
         <img src="/static/logo.jpeg" class="logo" alt="ArriendoScore">
-        <h1>ArriendoScore.co</h1>
-        <p class="sub">El Datacrédito de Arriendos en Colombia</p>
-
+        <h1>DatoArriendo</h1>
+        
         <form method="POST" class="buscador">
             <input type="text" name="cc" placeholder="Ingresa la CC" required>
             <button type="submit">Consultar</button>
