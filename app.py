@@ -31,7 +31,7 @@ def inicio():
    .slogan { color:#666; margin-bottom:25px }
     </style>
     <div class="caja">
-        <h1>📊 DatoArriendo.co</h1>
+        <h1>📊 DatoArriendo</h1>
         <p class="slogan">El Datacredito de Arrendatarios en Colombia</p>
         <form method="POST">
             <input name="cc" placeholder="Ingresa número de CC" required style="padding:12px; width: 250px; border:2px solid #ddd; border-radius:8px">
