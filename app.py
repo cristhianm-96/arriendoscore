@@ -1,48 +1,61 @@
-from flask import Flask, request
 import pandas as pd
-import os
+from flask import Flask, render_template_string
 
 app = Flask(__name__)
-ruta = os.path.join(os.path.dirname(__file__), 'datos.csv')
-datos = pd.read_csv(ruta)
 
-@app.route('/', methods=['GET', 'POST'])
-def inicio():
-    resultado = ""
-    if request.method == 'POST':
-        cc = request.form.get('cc')
-        fila = datos[datos.iloc[:, 0].astype(str) == str(cc)]
-        if not fila.empty:
-            fila = fila.iloc[0]
-            resultado = "<div style='background:#f0f9ff;padding:20px;border-radius:10px;margin-top:20px;border-left:4px solid #2563eb; text-align:left'>"
-            resultado += f"<h3 style='color:#16a34a; margin-top:0'>✅ Encontrado</h3>"
-            resultado += f"<p><b>Nombre:</b> {fila.iloc[1]}</p>"
-            resultado += f"<p><b>Puntaje:</b> {fila.iloc[2]}</p>"
-            resultado += f"<p><b>Estado:</b> {fila.iloc[3]}</p>"
-            resultado += "</div>"
-        else:
-            resultado = "<p style='color:red; margin-top:20px'>❌ CC no encontrada</p>"
+# Cargar datos
+try:
+    df = pd.read_csv("datos.csv")
+    df["Precio"] = pd.to_numeric(df["Precio"], errors='coerce')
+    df["Barrio"] = df["Barrio"].astype(str)
+except Exception as e:
+    print("Error cargando datos:", e)
+    df = pd.DataFrame()
 
-    return """
-    <style>
-    body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #2563eb, #1e40af); padding: 50px; margin: 0;}
-  .caja { background: white; padding: 40px; border-radius: 15px; max-width: 600px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align:center }
-  .logo { width:120px; margin-bottom:10px }
-    h1 { color: #1e40af; font-size: 28px; margin:10px 0 }
-  .slogan { color:#666; margin-bottom:25px; font-size:14px }
-    input { padding:12px; width: 60%; border:2px solid #ddd; border-radius:8px; font-size:16px;}
-    button { padding:12px 24px; background:#2563eb; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin-top:10px; font-size:16px;}
-    button:hover { background:#1e40af; }
-    </style>
-    <div class="caja">
-        <img src="logo.jpeg" class="logo" alt="DatoArriendo">
-        <h1>DatoArriendo</h1>
-        <p class="slogan">El Datacrédito de los Arrendatarios</p>
-        <form method="POST">
-            <input name="cc" placeholder="Ingresa número de CC" required>
-            <br>
-            <button>Consultar</button>
-        </form>
-    """ + resultado + """
+# HTML con el logo en /static/logo.jpeg
+HTML = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DatoArriendo - Busca tu arriendo ideal</title>
+<style>
+    body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 0; }
+    header { background: #0056b3; color: white; padding: 15px; text-align: center; }
+    .logo { width: 180px; margin-bottom: 10px; }
+    h1 { margin: 0; font-size: 24px; }
+    .container { padding: 20px; max-width: 900px; margin: auto; }
+    .card { background: white; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .precio { color: #0056b3; font-weight: bold; font-size: 18px; }
+    footer { text-align: center; padding: 15px; background: #eee; margin-top: 20px; }
+</style>
+</head>
+<body>
+    <header>
+        <img src="/static/logo.jpeg" class="logo" alt="DatoArriendo">
+        <h1>Encuentra tu próximo arriendo en Bogotá</h1>
+    </header>
+    <div class="container">
+        {% for i, row in datos.iterrows() %}
+        <div class="card">
+            <h2>{{ row['Barrio'] }}</h2>
+            <p class="precio">${{ "{:,.0f}".format(row['Precio']) }} COP</p>
+            <p><b>Habitaciones:</b> {{ row['Habitaciones'] }} | <b>Baños:</b> {{ row['Baños'] }}</p>
+            <p><b>Área:</b> {{ row['Área'] }} m²</p>
+        </div>
+        {% endfor %}
     </div>
-    """
+    <footer>
+        <p>© 2026 DatoArriendo - Datos actualizados</p>
+    </footer>
+</body>
+</html>
+"""
+
+@app.route("/")
+def home():
+    return render_template_string(HTML, datos=df)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
