@@ -36,7 +36,7 @@ def inicio():
     h1 {{ color: #2563eb; }}
     </style>
     <div class="caja">
-        <h1>ArriendoScore.co</h1>
+        <h1>datoarriendo</h1>
         <p>El Datacredito de Arriendos en Colombia</p>
         <form method="POST">
             <input name="cc" placeholder="Ingresa la CC" required>
