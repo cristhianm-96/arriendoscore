@@ -3,8 +3,6 @@ import pandas as pd
 import os
 
 app = Flask(__name__)
-
-# Cargar los datos del CSV
 ruta = os.path.join(os.path.dirname(__file__), 'datos.csv')
 datos = pd.read_csv(ruta)
 
@@ -27,56 +25,14 @@ def inicio():
 
     return """
     <style>
-    body { 
-        font-family: 'Segoe UI', sans-serif; 
-        background: linear-gradient(135deg, #2563eb, #1e40af); 
-        padding: 50px; 
-        margin: 0;
-    }
-   .caja { 
-        background: white; 
-        padding: 40px; 
-        border-radius: 15px; 
-        max-width: 600px; 
-        margin: auto; 
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
-        text-align:center 
-    }
-   .logo { 
-        width:120px; 
-        margin-bottom:10px 
-    }
-    h1 { 
-        color: #1e40af; 
-        font-size: 28px; 
-        margin:10px 0 
-    }
-   .slogan { 
-        color:#666; 
-        margin-bottom:25px; 
-        font-size:14px 
-    }
-    input { 
-        padding:12px; 
-        width: 60%; 
-        border:2px solid #ddd; 
-        border-radius:8px;
-        font-size:16px;
-    }
-    button { 
-        padding:12px 24px; 
-        background:#2563eb; 
-        color:white; 
-        border:none; 
-        border-radius:8px; 
-        cursor:pointer; 
-        font-weight:bold; 
-        margin-top:10px;
-        font-size:16px;
-    }
-    button:hover {
-        background:#1e40af;
-    }
+    body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #2563eb, #1e40af); padding: 50px; margin: 0;}
+  .caja { background: white; padding: 40px; border-radius: 15px; max-width: 600px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align:center }
+  .logo { width:120px; margin-bottom:10px }
+    h1 { color: #1e40af; font-size: 28px; margin:10px 0 }
+  .slogan { color:#666; margin-bottom:25px; font-size:14px }
+    input { padding:12px; width: 60%; border:2px solid #ddd; border-radius:8px; font-size:16px;}
+    button { padding:12px 24px; background:#2563eb; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold; margin-top:10px; font-size:16px;}
+    button:hover { background:#1e40af; }
     </style>
     <div class="caja">
         <img src="logo.jpeg" class="logo" alt="DatoArriendo">
@@ -90,6 +46,3 @@ def inicio():
     """ + resultado + """
     </div>
     """
-
-if __name__ == '__main__':
-    app.run(debug=True)
