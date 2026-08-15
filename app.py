@@ -1,61 +1,83 @@
 import pandas as pd
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, request
 
 app = Flask(__name__)
 
 # Cargar datos
 try:
     df = pd.read_csv("datos.csv")
-    df["Precio"] = pd.to_numeric(df["Precio"], errors='coerce')
-    df["Barrio"] = df["Barrio"].astype(str)
+    df.columns = df.columns.str.strip().str.lower() # para que no falle por mayúsculas
 except Exception as e:
     print("Error cargando datos:", e)
     df = pd.DataFrame()
 
-# HTML con el logo en /static/logo.jpeg
 HTML = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DatoArriendo - Busca tu arriendo ideal</title>
+<title>ArriendoScore.co - El Datacrédito de Arriendos</title>
 <style>
-    body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 0; }
-    header { background: #0056b3; color: white; padding: 15px; text-align: center; }
-    .logo { width: 180px; margin-bottom: 10px; }
-    h1 { margin: 0; font-size: 24px; }
-    .container { padding: 20px; max-width: 900px; margin: auto; }
-    .card { background: white; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    .precio { color: #0056b3; font-weight: bold; font-size: 18px; }
-    footer { text-align: center; padding: 15px; background: #eee; margin-top: 20px; }
+    body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 40px 20px; display: flex; justify-content: center; }
+  .card-principal { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 500px; width: 100%; text-align: center; }
+    h1 { color: #0056b3; margin: 0; font-size: 32px; }
+   .sub { color: #555; margin-bottom: 20px; }
+  .logo { width: 160px; margin-bottom: 15px; }
+   .buscador { display: flex; gap: 10px; margin-bottom: 20px; }
+   .buscador input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+   .buscador button { padding: 12px 20px; background: #0056b3; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+   .buscador button:hover { background: #003d82; }
+   .resultado { margin-top: 20px; text-align: left; }
+  .encontrado { color: #28a745; font-weight: bold; font-size: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .no-encontrado { color: #dc3545; font-weight: bold; font-size: 20px; }
+   .dato { margin: 8px 0; }
+   .dato b { color: #333; }
 </style>
 </head>
 <body>
-    <header>
-        <img src="/static/logo.jpeg" class="logo" alt="DatoArriendo">
-        <h1>Encuentra tu próximo arriendo en Bogotá</h1>
-    </header>
-    <div class="container">
-        {% for i, row in datos.iterrows() %}
-        <div class="card">
-            <h2>{{ row['Barrio'] }}</h2>
-            <p class="precio">${{ "{:,.0f}".format(row['Precio']) }} COP</p>
-            <p><b>Habitaciones:</b> {{ row['Habitaciones'] }} | <b>Baños:</b> {{ row['Baños'] }}</p>
-            <p><b>Área:</b> {{ row['Área'] }} m²</p>
+    <div class="card-principal">
+        <img src="/static/logo.jpeg" class="logo" alt="ArriendoScore">
+        <h1>ArriendoScore.co</h1>
+        <p class="sub">El Datacrédito de Arriendos en Colombia</p>
+
+        <form method="POST" class="buscador">
+            <input type="text" name="cc" placeholder="Ingresa la CC" required>
+            <button type="submit">Consultar</button>
+        </form>
+
+        {% if resultado %}
+        <div class="resultado">
+            {% if resultado.encontrado %}
+                <p class="encontrado">✅ Encontrado</p>
+                <p class="dato"><b>Nombre:</b> {{ resultado.nombre }}</p>
+                <p class="dato"><b>Puntaje:</b> {{ resultado.puntuación }}</p>
+                <p class="dato"><b>Estado:</b> {{ resultado.estado }}</p>
+                <p class="dato"><b>Reportes:</b> {{ resultado.informes }}</p>
+            {% else %}
+                <p class="no-encontrado">❌ No encontrado</p>
+                <p>Esta persona no tiene historial en ArriendoScore</p>
+            {% endif %}
         </div>
-        {% endfor %}
+        {% endif %}
     </div>
-    <footer>
-        <p>© 2026 DatoArriendo - Datos actualizados</p>
-    </footer>
 </body>
 </html>
 """
 
-@app.route("/")
+@app.route("/", methods=["GET", "POST"])
 def home():
-    return render_template_string(HTML, datos=df)
+    resultado = None
+    if request.method == "POST":
+        cc_buscar = request.form["cc"].strip()
+        persona = df[df['cc'].astype(str) == cc_buscar]
+        if not persona.empty:
+            resultado = persona.iloc[0].to_dict()
+            resultado['encontrado'] = True
+        else:
+            resultado = {'encontrado': False}
+    
+    return render_template_string(HTML, resultado=resultado)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
