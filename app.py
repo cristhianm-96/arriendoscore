@@ -27,21 +27,21 @@ def inicio():
         else:
             resultado = "<h2 style='color:red'>❌ CC no encontrada</h2>"
 
-    return f"""
+ return f"""
     <style>
-    body {{ font-family: Arial; text-align: center; padding: 50px; background: #f0f2f5; }}
-   .caja {{ background: white; padding: 30px; border-radius: 10px; max-width: 500px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }}
-    input {{ padding: 12px; width: 220px; border: 1px solid #ccc; border-radius: 5px; font-size:16px }}
-    button {{ padding: 12px 24px; background: #2563eb; color: white; border: none; border-radius: 5px; font-size:16px; cursor: pointer; }}
-    h1 {{ color: #2563eb; }}
+    body {{ font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0ea5e9, #0284c7); padding: 50px; }}
+    .caja {{ background: white; padding: 40px; border-radius: 15px; max-width: 600px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }}
+    h1 {{ color: #0284c7; font-size: 36px; margin:0 }}
+    .slogan {{ color:#666; margin-bottom:25px }}
+    .resultado {{ background: #f0f9ff; padding: 20px; border-radius: 10px; margin-top: 20px; border-left: 4px solid #0284c7; }}
     </style>
     <div class="caja">
-        <h1>datoarriendo</h1>
-        <p>El Datacredito de Arriendos en Colombia</p>
+        <h1>📊 DatoArriendo.co</h1>
+        <p class="slogan">El Datacredito de Arrendatarios en Colombia</p>
         <form method="POST">
-            <input name="cc" placeholder="Ingresa la CC" required>
-            <button>Consultar</button>
+            <input name="cc" placeholder="Ingresa número de CC" required style="padding:12px; width: 250px; border:2px solid #ddd; border-radius:8px">
+            <button style="padding:12px 24px; background:#0284c7; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold">Consultar</button>
         </form>
-        <div style="margin-top:20px">{resultado}</div>
+        <div class="resultado">{resultado}</div>
     </div>
     """
