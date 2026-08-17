@@ -27,6 +27,21 @@ def get_user(email):
             return u
     return None
 
+def crear_usuario(email, password, nombre, celular):
+    """Crea usuario nuevo en estado pendiente con 2 cupos"""
+    usuarios_ws = sheet.worksheet("Usuarios")
+    usuarios_ws.append_row([
+        email, 
+        password, 
+        "arrendador", # rol por defecto
+        nombre,
+        celular,
+        2, # cupos_totales por defecto
+        0, # cupos_usados
+        "pendiente" # estado
+    ])
+    return True
+
 def buscar_cedula(cc):
     """Busca cédula en pestaña Autorizaciones"""
     autorizaciones = sheet.worksheet("Autorizaciones").get_all_records()
@@ -37,21 +52,13 @@ def buscar_cedula(cc):
 
 def reportar(cc, motivo, user):
     """Guarda reporte y descuenta 1 cupo"""
-    # 1. Validar cupos
     cupos_disp = int(user['cupos_totales']) - int(user['cupos_usados'])
     if cupos_disp <= 0:
         return "Error: No tienes cupos disponibles"
     
-    # 2. Guardar en Reportes
     reportes = sheet.worksheet("Reportes")
-    reportes.append_row([
-        cc, 
-        motivo, 
-        user['email'], 
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ])
+    reportes.append_row([cc, motivo, user['email'], datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
     
-    # 3. Descontar cupo en Usuarios columna G
     usuarios_ws = sheet.worksheet("Usuarios")
     cell = usuarios_ws.find(user['email'])
     nuevo_cupo = int(user['cupos_usados']) + 1
@@ -72,7 +79,40 @@ def login():
             Password: <br><input name="password" type="password" style="width:100%; padding:8px;" required><br><br>
             <button style="padding:10px 20px;">Entrar</button>
         </form>
+        <br>
+        <p>¿No tienes cuenta? <a href="/registro">Regístrate aquí</a></p>
     </body></html>""")
+
+@app.route("/registro", methods=["GET", "POST"])
+def registro():
+    if request.method == "GET":
+        return render_template_string("""
+        <html>
+        <head><title>Registro</title></head>
+        <body style="font-family:Arial; max-width:400px; margin:50px auto;">
+            <h2>Registro Arriendoscore</h2>
+            <form method="post" action="/registro">
+                Nombre: <br><input name="nombre" style="width:100%; padding:8px;" required><br><br>
+                Celular: <br><input name="celular" style="width:100%; padding:8px;" required><br><br>
+                Email: <br><input name="email" type="email" style="width:100%; padding:8px;" required><br><br>
+                Password: <br><input name="password" type="password" style="width:100%; padding:8px;" required><br><br>
+                <button style="padding:10px 20px;">Crear Cuenta</button>
+            </form>
+            <br><a href="/">Volver a Login</a>
+        </body></html>""")
+    
+    # POST
+    email = request.form['email']
+    if get_user(email):
+        return "Ese email ya existe. <a href='/registro'>Intentar otra vez</a>"
+    
+    crear_usuario(
+        request.form['email'],
+        request.form['password'],
+        request.form['nombre'],
+        request.form['celular']
+    )
+    return "Cuenta creada. Queda en estado 'pendiente'. Un admin debe activarla. <a href='/'>Ir a Login</a>"
 
 @app.route("/login", methods=["POST"])
 def login_post():
@@ -82,7 +122,7 @@ def login_post():
     if user and str(user['password']) == password:
         session['user'] = user
         return redirect("/dashboard")
-    return "Login invalido. <a href='/'>Volver</a>"
+    return "Login invalido o cuenta pendiente de activación. <a href='/'>Volver</a>"
 
 @app.route("/dashboard")
 def dashboard():
