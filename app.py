@@ -5,11 +5,11 @@ import os
 
 app = Flask(__name__)
 
-# 1. LEER LAS 6 VARIABLES DE RENDER
+# 1. LEER LAS 7 VARIABLES DE RENDER
 SHEET_ID = os.environ.get('SHEET_ID')
 GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID')
 GCP_PRIVATE_KEY_ID = os.environ.get('GCP_PRIVATE_KEY_ID')
-GCP_PRIVATE_KEY = os.environ.get('GCP_PRIVATE_KEY_ID') # OJO: Render te lo llama así pero es la llave
+GCP_PRIVATE_KEY = os.environ.get('GCP_PRIVATE_KEY') # CORREGIDO: sin _ID
 GCP_CLIENT_EMAIL = os.environ.get('GCP_CLIENT_EMAIL')
 GCP_CLIENT_ID = os.environ.get('GCP_CLIENT_ID')
 GCP_CLIENT_CERT_URL = os.environ.get('GCP_CLIENT_CERT_URL')
@@ -26,7 +26,7 @@ creds_dict = {
 }
 
 scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-creds = Credentials.from_service_account_info(creds_dict, scopes-scopes)
+creds = Credentials.from_service_account_info(creds_dict, scopes=scopes) # CORREGIDO: scopes=scopes
 client = gspread.authorize(creds)
 
 
@@ -48,15 +48,31 @@ def buscar():
         if cell:
             fila = sheet.row_values(cell.row) # Lee toda la fila
             return f"""
-            <h2>✅ Encontrado</h2>
-            <p><b>Cédula:</b> {fila[0]}</p>
-            <p><b>Nombre:</b> {fila[1]}</p>
-            <p><b>Teléfono:</b> {fila[2]}</p>
-            <p><b>Estado:</b> {fila[3]}</p>
-            <a href='/'>Volver</a>
+            <!DOCTYPE html>
+            <html>
+            <head><title>Resultado</title></head>
+            <body style="font-family: Arial; padding: 20px;">
+                <h2>✅ Encontrado</h2>
+                <p><b>Cédula:</b> {fila[0]}</p>
+                <p><b>Nombre:</b> {fila[1]}</p>
+                <p><b>Teléfono:</b> {fila[2]}</p>
+                <p><b>Estado:</b> {fila[3]}</p>
+                <a href='/'>Volver a buscar</a>
+            </body>
+            </html>
             """
         else:
-            return f"<h2>❌ No encontrado</h2><p>La cédula {cedula} no existe en la base de datos</p><a href='/'>Volver</a>"
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>No encontrado</title></head>
+            <body style="font-family: Arial; padding: 20px;">
+                <h2>❌ No encontrado</h2>
+                <p>La cédula {cedula} no existe en la base de datos</p>
+                <a href='/'>Volver a buscar</a>
+            </body>
+            </html>
+            """
             
     except Exception as e:
         return f"<h2>⚠️ Error de conexión</h2><p>{e}</p><a href='/'>Volver</a>"
