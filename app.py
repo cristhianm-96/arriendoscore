@@ -76,7 +76,7 @@ def get_user(email):
 def login():
     return render_template_string(CSS + """
     <div class="container">
-        <h2>Login DatoArriendo</h2>
+        <h2>DatoArriendo</h2>
         <form method="post" action="/login">
             <input name="email" type="email" placeholder="Email" required>
             <input name="password" type="password" placeholder="Password" required>
