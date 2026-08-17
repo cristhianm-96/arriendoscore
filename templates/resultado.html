@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultado de Búsqueda</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; text-align: center; }
+        .card { background: white; padding: 30px; border-radius: 10px; max-width: 500px; margin: 50px auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; }
+        .dato { text-align: left; margin: 15px 0; padding: 10px; background: #ecf0f1; border-radius: 5px; }
+        .dato b { color: #2980b9; }
+        .btn { display: inline-block; margin-top: 20px; padding: 10px 20px; background: #2980b9; color: white; text-decoration: none; border-radius: 5px; }
+        .no-encontrado { color: #c0392c; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        {% if resultado %}
+            <h1>Datos Encontrados ✅</h1>
+            <div class="dato"><b>Cédula:</b> {{ resultado.cedula }}</div>
+            <div class="dato"><b>Nombre:</b> {{ resultado.nombre }}</div>
+            <div class="dato"><b>Teléfono:</b> {{ resultado.telefono }}</div>
+            <div class="dato"><b>Dirección:</b> {{ resultado.direccion }}</div>
+            <div class="dato"><b>Estado:</b> {{ resultado.estado }}</div>
+            <div class="dato"><b>Fecha:</b> {{ resultado.fecha }}</div>
+            <div class="dato"><b>Notas:</b> {{ resultado.notas }}</div>
+        {% else %}
+            <h1 class="no-encontrado">No se encontró la cédula ❌</h1>
+            <p>Verifica que la cédula esté bien escrita o que exista en la base de datos.</p>
+        {% endif %}
+        
+        <a href="/" class="btn">Volver a Buscar</a>
+    </div>
+</body>
+</html>
