@@ -1,12 +1,118 @@
 <!DOCTYPE html>
-<html>
-<head><title>Buscar Usuario</title></head>
-<body style="font-family: Arial; padding: 20px;">
-    <h2>Buscar Usuario</h2>
-    <form action="/buscar" method="POST">
-        <label for="cedula">Email:</label><br>
-        <input type="text" name="cedula" placeholder="demo@arrendador.com" required><br><br>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Consulta de Usuarios</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 0 20px;
+            color: #222;
+        }
+        h1, h2 {
+            color: #1a1a1a;
+        }
+        form {
+            margin-bottom: 24px;
+        }
+        label {
+            display: block;
+            margin-top: 12px;
+            font-weight: bold;
+        }
+        input[type="text"],
+        input[type="email"],
+        textarea {
+            width: 100%;
+            padding: 8px;
+            margin-top: 4px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            margin-top: 16px;
+            padding: 10px 18px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1e4fc4;
+        }
+        .card {
+            background: #f5f7fa;
+            border: 1px solid #dbe1ea;
+            border-radius: 6px;
+            padding: 16px;
+            margin-top: 20px;
+        }
+        .card p {
+            margin: 4px 0;
+        }
+        .flash {
+            background: #fff3cd;
+            border: 1px solid #ffe08a;
+            padding: 10px 14px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+        .reportar {
+            border-top: 1px solid #dbe1ea;
+            margin-top: 24px;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Consulta de Usuarios</h1>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for m in messages %}
+                <div class="flash">{{ m }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Formulario de búsqueda -->
+    <form action="{{ url_for('buscar') }}" method="POST">
+        <label for="email">Buscar usuario por email</label>
+        <input type="email" id="email" name="email"
+               value="{{ email_buscado or '' }}" required>
         <button type="submit">Buscar</button>
     </form>
+
+    {% if usuario %}
+        <div class="card">
+            <p><strong>Nombre:</strong> {{ usuario.nombre }}</p>
+            <p><strong>Email:</strong> {{ usuario.email }}</p>
+            <p><strong>Rol:</strong> {{ usuario.rol }}</p>
+            <p><strong>Celular:</strong> {{ usuario.celular }}</p>
+            <p><strong>Cupos:</strong> {{ usuario.cupos }}</p>
+            <p><strong>Estado:</strong> {{ usuario.estado }}</p>
+            <p><strong>Dirección:</strong> {{ usuario.direccion }}</p>
+        </div>
+
+        <!-- Formulario de Reportar Novedad -->
+        <div class="reportar">
+            <h2>Reportar Novedad</h2>
+            <form action="{{ url_for('reportar') }}" method="POST">
+                <input type="hidden" name="email" value="{{ usuario.email }}">
+                <input type="hidden" name="direccion" value="{{ usuario.direccion }}">
+
+                <label for="motivo">Motivo de la novedad</label>
+                <textarea id="motivo" name="motivo" rows="4" required></textarea>
+
+                <button type="submit">Enviar Reporte</button>
+            </form>
+        </div>
+    {% endif %}
+
 </body>
 </html>
