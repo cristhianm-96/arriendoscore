@@ -1,2 +1,12 @@
-<label for="cedula">Buscar por Email:</label>
-<input type="text" name="cedula" placeholder="demo@arrendador.com" required>
+<!DOCTYPE html>
+<html>
+<head><title>Buscar Usuario</title></head>
+<body style="font-family: Arial; padding: 20px;">
+    <h2>Buscar Usuario</h2>
+    <form action="/buscar" method="POST">
+        <label for="cedula">Email:</label><br>
+        <input type="text" name="cedula" placeholder="demo@arrendador.com" required><br><br>
+        <button type="submit">Buscar</button>
+    </form>
+</body>
+</html>
