@@ -6,17 +6,20 @@ from googleapiclient.discovery import build
 
 app = Flask(__name__)
 
-# 1. CONEXIÓN CON GOOGLE SHEETS
+# 1. CONEXIÓN CON GOOGLE SHEETS - VERSIÓN QUE SÍ FUNCIONA
 SCOPE = ['https://www.googleapis.com/auth/spreadsheets']
 creds_json_str = os.environ.get('GOOGLE_CREDS_JSON')
-creds_json_str = creds_json_str.replace('\\n', '\n') # Arregla los saltos de línea de la llave
+
+# Este replace arregla el problema del \n
+creds_json_str = creds_json_str.replace('\\n', '\n')
+
 CREDS_JSON = json.loads(creds_json_str)
 CREDS = Credentials.from_service_account_info(CREDS_JSON, scopes=SCOPE)
 SERVICE = build('sheets', 'v4', credentials=CREDS)
 
 # 2. DATOS DE TU SHEET
-SHEET_ID = os.environ.get('SHEET_ID') # Lee el ID desde Render
-RANGO = 'Hoja1!A:G' # Cambia "Hoja1" si tu pestaña se llama diferente. A=cedula, B=nombre, C=tel, D=direccion, E=estado, F=fecha, G=notas
+SHEET_ID = os.environ.get('SHEET_ID')
+RANGO = 'Hoja1!A:G' # Cambia "Hoja1" si tu pestaña se llama diferente
 
 # 3. RUTAS DE LA WEB
 @app.route('/')
@@ -28,12 +31,10 @@ def buscar():
     cedula_buscar = request.form['cedula']
     
     try:
-        # Lee todos los datos de la hoja
         result = SERVICE.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=RANGO).execute()
         valores = result.get('values', [])
         
         datos = None
-        # Recorre fila por fila buscando la cédula. Empieza en 1 para saltar encabezados
         for fila in valores[1:]: 
             if len(fila) > 0 and fila[0] == cedula_buscar:
                 datos = {
