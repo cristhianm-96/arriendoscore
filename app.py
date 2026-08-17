@@ -5,11 +5,11 @@ import os
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = "clave_secreta_cambiala"
+app.secret_key = "cambia_esta_clave_por_una_segura"
 
-# 1. CONEXIÓN CON GOOGLE SHEETS
+# 1. CONEXIÓN CON GOOGLE SHEETS USANDO VARIABLES DE RENDER
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict({
+creds_dict = {
     "type": os.environ["GCP_TYPE"],
     "project_id": os.environ["GCP_PROJECT_ID"],
     "private_key_id": os.environ["GCP_PRIVATE_KEY_ID"],
@@ -20,12 +20,13 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict({
     "token_uri": "https://oauth2.googleapis.com/token",
     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
     "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{os.environ['GCP_CLIENT_EMAIL']}"
-}, scope)
-
+}
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
-SHEET_ID = os.environ["SHEET_ID"]
 
-# 2. RUTA PRINCIPAL - BUSCAR USUARIO
+SHEET_ID = "11VX6GHOIlRabxkb-M7abknJ_9k2hHJCNpsONMQns3pY" # TU SHEET FIJO
+
+# 2. BUSCAR USUARIO
 @app.route("/", methods=["GET", "POST"])
 def index():
     usuario = None
@@ -36,7 +37,7 @@ def index():
             data = sheet_usuarios.get_all_records()
             
             for fila in data:
-                if fila["Email"] == email:  # OJO: La columna debe llamarse "Email"
+                if str(fila["Email"]).strip().lower() == email.strip().lower():
                     usuario = fila
                     break
             
@@ -48,11 +49,11 @@ def index():
             
     return render_template("index.html", usuario=usuario)
 
-# 3. RUTA PARA REPORTAR
+# 3. GUARDAR REPORTE
 @app.route("/reportar", methods=["POST"])
 def reportar():
     try:
-        sheet_reportes = client.open_by_key(SHEET_ID).worksheet("Reportes") # YA CORREGIDO
+        sheet_reportes = client.open_by_key(SHEET_ID).worksheet("Reportes")
         
         nuevo_reporte = [
             request.form["email"],
@@ -67,7 +68,6 @@ def reportar():
         flash(f"Error al guardar: {e}", "danger")
         
     return redirect(url_for("index"))
-
 
 if __name__ == "__main__":
     app.run(debug=True)
