@@ -34,7 +34,7 @@ def crear_usuario(email, password, nombre, celular, rol):
         email, 
         password, 
         rol,
-        nombre,
+        nombre, # Columna D = Nombre/Razón Social
         celular,
         cupos, # cupos_totales
         0, # cupos_usados
@@ -90,7 +90,7 @@ def registro():
         <body style="font-family:Arial; max-width:400px; margin:50px auto;">
             <h2>Registro Arriendoscore</h2>
             <form method="post" action="/registro">
-                Nombre: <br><input name="nombre" style="width:100%; padding:8px;" required><br><br>
+                Nombre/Razón Social: <br><input name="nombre" style="width:100%; padding:8px;" required><br><br>
                 Celular: <br><input name="celular" style="width:100%; padding:8px;" required><br><br>
                 Email: <br><input name="email" type="email" style="width:100%; padding:8px;" required><br><br>
                 Password: <br><input name="password" type="password" style="width:100%; padding:8px;" required><br><br>
