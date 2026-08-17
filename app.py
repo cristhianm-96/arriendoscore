@@ -20,30 +20,29 @@ sheet = client.open_by_key(SHEET_ID)
 
 # 3. Funciones
 def get_user(email):
-    """Busca usuario en pestaña Usuarios y valida que esté activo"""
     users = sheet.worksheet("Usuarios").get_all_records()
     for u in users:
         if u['email'] == email and u['estado'] == 'activo':
             return u
     return None
 
-def crear_usuario(email, password, nombre, celular):
-    """Crea usuario nuevo en estado pendiente con 2 cupos"""
+def crear_usuario(email, password, nombre, celular, rol):
+    """Crea usuario. Inmobiliaria=50 cupos, Arrendador=3 cupos"""
+    cupos = 50 if rol == "inmobiliaria" else 3
     usuarios_ws = sheet.worksheet("Usuarios")
     usuarios_ws.append_row([
         email, 
         password, 
-        "arrendador", # rol por defecto
+        rol,
         nombre,
         celular,
-        2, # cupos_totales por defecto
+        cupos, # cupos_totales
         0, # cupos_usados
         "pendiente" # estado
     ])
     return True
 
 def buscar_cedula(cc):
-    """Busca cédula en pestaña Autorizaciones"""
     autorizaciones = sheet.worksheet("Autorizaciones").get_all_records()
     for a in autorizaciones:
         if str(a['cc']) == str(cc):
@@ -51,7 +50,6 @@ def buscar_cedula(cc):
     return None
 
 def reportar(cc, motivo, user):
-    """Guarda reporte y descuenta 1 cupo"""
     cupos_disp = int(user['cupos_totales']) - int(user['cupos_usados'])
     if cupos_disp <= 0:
         return "Error: No tienes cupos disponibles"
@@ -62,7 +60,7 @@ def reportar(cc, motivo, user):
     usuarios_ws = sheet.worksheet("Usuarios")
     cell = usuarios_ws.find(user['email'])
     nuevo_cupo = int(user['cupos_usados']) + 1
-    usuarios_ws.update_cell(cell.row, 7, nuevo_cupo) # G = 7
+    usuarios_ws.update_cell(cell.row, 7, nuevo_cupo) # Columna G
     
     return f"Reporte guardado. Cupos restantes: {cupos_disp - 1}"
 
@@ -96,6 +94,14 @@ def registro():
                 Celular: <br><input name="celular" style="width:100%; padding:8px;" required><br><br>
                 Email: <br><input name="email" type="email" style="width:100%; padding:8px;" required><br><br>
                 Password: <br><input name="password" type="password" style="width:100%; padding:8px;" required><br><br>
+                
+                Tipo de cuenta: <br>
+                <select name="rol" style="width:100%; padding:8px;" required>
+                    <option value="">Seleccione...</option>
+                    <option value="arrendador">Arrendador - Hasta 3 arriendos</option>
+                    <option value="inmobiliaria">Inmobiliaria - Hasta 50 arriendos</option>
+                </select><br><br>
+                
                 <button style="padding:10px 20px;">Crear Cuenta</button>
             </form>
             <br><a href="/">Volver a Login</a>
@@ -110,7 +116,8 @@ def registro():
         request.form['email'],
         request.form['password'],
         request.form['nombre'],
-        request.form['celular']
+        request.form['celular'],
+        request.form['rol']
     )
     return "Cuenta creada. Queda en estado 'pendiente'. Un admin debe activarla. <a href='/'>Ir a Login</a>"
 
@@ -129,12 +136,13 @@ def dashboard():
     user = session.get('user')
     if not user: return redirect("/")
     cupos_disp = int(user['cupos_totales']) - int(user['cupos_usados'])
+    tipo = "Inmobiliaria 50" if user['rol'] == "inmobiliaria" else "Arrendador 3"
     return render_template_string(f"""
     <html>
     <head><title>Dashboard</title></head>
     <body style="font-family:Arial; max-width:600px; margin:30px auto;">
         <h2>Bienvenido {user['nombre']}</h2>
-        <p><b>Rol:</b> {user['rol']} | <b>Cupos disponibles:</b> {cupos_disp}</p>
+        <p><b>Rol:</b> {tipo} | <b>Cupos disponibles:</b> {cupos_disp}</p>
         <hr>
         <h3>Consultar Autorización</h3>
         <form method="post" action="/buscar">
