@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head><title>Reportar Cliente</title></head>
+<body style="font-family: Arial; padding: 20px; max-width: 500px; margin: auto;">
+    <h2>⚠️ Reportar Inquilino</h2>
+    <form action="/guardar_reporte" method="post">
+        <label>Tu Email:</label><br>
+        <input type="email" name="quien_reporto" required><br><br>
+        
+        <label>Cédula:</label><br>
+        <input type="text" name="cc" required><br><br>
+        
+        <label>Nombre:</label><br>
+        <input type="text" name="nombre" required><br><br>
+        
+        <label>Celular:</label><br>
+        <input type="text" name="celular"><br><br>
+        
+        <label>Valor Arriendo:</label><br>
+        <input type="number" name="valor"><br><br>
+        
+        <label>Deuda Final:</label><br>
+        <input type="number" name="deuda_final"><br><br>
+        
+        <label>Comentario:</label><br>
+        <textarea name="comentario"></textarea><br><br>
+        
+        <button type="submit" style="background: red; color: white; padding: 10px;">REPORTAR</button>
+    </form>
+</body>
+</html>
