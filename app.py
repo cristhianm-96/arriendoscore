@@ -9,7 +9,7 @@ app = Flask(__name__)
 SHEET_ID = os.environ.get('SHEET_ID')
 GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID')
 GCP_PRIVATE_KEY_ID = os.environ.get('GCP_PRIVATE_KEY_ID')
-GCP_PRIVATE_KEY = os.environ.get('GCP_PRIVATE_KEY') # CORREGIDO: sin _ID
+GCP_PRIVATE_KEY = os.environ.get('GCP_PRIVATE_KEY')
 GCP_CLIENT_EMAIL = os.environ.get('GCP_CLIENT_EMAIL')
 GCP_CLIENT_ID = os.environ.get('GCP_CLIENT_ID')
 GCP_CLIENT_CERT_URL = os.environ.get('GCP_CLIENT_CERT_URL')
@@ -19,14 +19,14 @@ creds_dict = {
   "type": "service_account",
   "project_id": GCP_PROJECT_ID,
   "private_key_id": GCP_PRIVATE_KEY_ID,
-  "private_key": GCP_PRIVATE_KEY.replace('\\n', '\n'), # Esto arregla los \n
+  "private_key": GCP_PRIVATE_KEY.replace('\\n', '\n'),
   "client_email": GCP_CLIENT_EMAIL,
   "client_id": GCP_CLIENT_ID,
   "client_cert_url": GCP_CLIENT_CERT_URL
 }
 
 scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-creds = Credentials.from_service_account_info(creds_dict, scopes=scopes) # CORREGIDO: scopes=scopes
+creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
 client = gspread.authorize(creds)
 
 
@@ -36,27 +36,32 @@ def home():
     return render_template('index.html')
 
 
-# 4. RUTA BUSCAR - BUSCA LA CEDULA
+# 4. RUTA BUSCAR - BUSCA POR EMAIL EN LA PESTAÑA USUARIOS
 @app.route('/buscar', methods=['POST'])
 def buscar():
-    cedula = request.form['cedula']
+    email_buscar = request.form['cedula'] # El form sigue mandando 'cedula'
     
     try:
-        sheet = client.open_by_key(SHEET_ID).sheet1
-        cell = sheet.find(cedula)
+        # Abre el libro y busca en la pestaña "Usuarios"
+        sheet = client.open_by_key(SHEET_ID).worksheet("Usuarios")
+        cell = sheet.find(email_buscar)
         
         if cell:
             fila = sheet.row_values(cell.row) # Lee toda la fila
+            # A=0 email, B=1 password, C=2 rol, D=3 nombre, E=4 celular, F=5 cupos_totales, G=6 cupos_usados, H=7 estado
             return f"""
             <!DOCTYPE html>
             <html>
             <head><title>Resultado</title></head>
-            <body style="font-family: Arial; padding: 20px;">
-                <h2>✅ Encontrado</h2>
-                <p><b>Cédula:</b> {fila[0]}</p>
-                <p><b>Nombre:</b> {fila[1]}</p>
-                <p><b>Teléfono:</b> {fila[2]}</p>
-                <p><b>Estado:</b> {fila[3]}</p>
+            <body style="font-family: Arial; padding: 20px; max-width: 600px; margin: auto;">
+                <h2>✅ Usuario Encontrado</h2>
+                <p><b>Email:</b> {fila[0]}</p>
+                <p><b>Nombre:</b> {fila[3]}</p>
+                <p><b>Rol:</b> {fila[2]}</p>
+                <p><b>Celular:</b> {fila[4]}</p>
+                <p><b>Cupos:</b> {fila[6]} usados de {fila[5]} totales</p>
+                <p><b>Estado:</b> {fila[7]}</p>
+                <br>
                 <a href='/'>Volver a buscar</a>
             </body>
             </html>
@@ -68,7 +73,7 @@ def buscar():
             <head><title>No encontrado</title></head>
             <body style="font-family: Arial; padding: 20px;">
                 <h2>❌ No encontrado</h2>
-                <p>La cédula {cedula} no existe en la base de datos</p>
+                <p>El email {email_buscar} no existe en la base de datos</p>
                 <a href='/'>Volver a buscar</a>
             </body>
             </html>
