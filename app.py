@@ -5,7 +5,7 @@ import os
 
 app = Flask(__name__)
 
-# 1. LEER LAS 7 VARIABLES DE RENDER
+# 1. LEER LAS 8 VARIABLES DE RENDER
 SHEET_ID = os.environ.get('SHEET_ID')
 GCP_PROJECT_ID = os.environ.get('GCP_PROJECT_ID')
 GCP_PRIVATE_KEY_ID = os.environ.get('GCP_PRIVATE_KEY_ID')
@@ -13,6 +13,7 @@ GCP_PRIVATE_KEY = os.environ.get('GCP_PRIVATE_KEY')
 GCP_CLIENT_EMAIL = os.environ.get('GCP_CLIENT_EMAIL')
 GCP_CLIENT_ID = os.environ.get('GCP_CLIENT_ID')
 GCP_CLIENT_CERT_URL = os.environ.get('GCP_CLIENT_CERT_URL')
+GCP_TOKEN_URI = os.environ.get('GCP_TOKEN_URI') # NUEVA
 
 # 2. ARMAR EL JSON PARA GOOGLE
 creds_dict = {
@@ -22,6 +23,8 @@ creds_dict = {
   "private_key": GCP_PRIVATE_KEY.replace('\\n', '\n'),
   "client_email": GCP_CLIENT_EMAIL,
   "client_id": GCP_CLIENT_ID,
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": GCP_TOKEN_URI, # <-- ESTA ERA LA QUE FALTABA
   "client_cert_url": GCP_CLIENT_CERT_URL
 }
 
@@ -39,7 +42,7 @@ def home():
 # 4. RUTA BUSCAR - BUSCA POR EMAIL EN LA PESTAÑA USUARIOS
 @app.route('/buscar', methods=['POST'])
 def buscar():
-    email_buscar = request.form['cedula'] # El form sigue mandando 'cedula'
+    email_buscar = request.form['cedula'] 
     
     try:
         # Abre el libro y busca en la pestaña "Usuarios"
@@ -84,4 +87,4 @@ def buscar():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=10000) # Para que funcione bien en Render
