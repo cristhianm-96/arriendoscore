@@ -2,9 +2,9 @@ from flask import Flask, request, session, redirect, render_template_string
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import os
-import json
-import base64
-import tempfile
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
 app = Flask(__name__)
@@ -12,34 +12,56 @@ app.secret_key = "datoarriendo_2026_segura"
 print(">>> DATOARRIENDO INICIANDO...")
 
 SHEET_ID = os.environ.get("SHEET_ID")
-GOOGLE_CREDENTIALS_B64 = os.environ.get("GOOGLE_CREDENTIALS_B64")
+GMAIL_USER = os.environ.get("GMAIL_USER")
+GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD")
+CREDS_PATH = "/etc/secrets/credentials.json" # Render monta aquí el Secret File
 
 scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
 sheet = None
 try:
-    print(">>> LARGO B64:", len(GOOGLE_CREDENTIALS_B64))
-    print(">>> DECODIFICANDO CREDENCIALES...")
-    
-    # Claude 4 Fix: Guardar en archivo temporal
-    creds_json_str = base64.b64decode(GOOGLE_CREDENTIALS_B64).decode('utf-8')
-    print(">>> PRIMEROS 50 CARACTERES:", creds_json_str[:50])
-    
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp:
-        tmp.write(creds_json_str)
-        tmp_path = tmp.name
-    
-    creds = ServiceAccountCredentials.from_json_keyfile_name(tmp_path, scope)
+    print(">>> LEYENDO CREDENCIALES DESDE:", CREDS_PATH)
+    creds = ServiceAccountCredentials.from_json_keyfile_name(CREDS_PATH, scope)
     client = gspread.authorize(creds)
     sheet = client.open_by_key(SHEET_ID)
     print(">>> CONEXION A GOOGLE SHEETS OK")
 except Exception as e:
     print(">>> ERROR CRITICO GOOGLE SHEETS:", e)
 
+CSS = """
+<style>
+body {font-family: Arial; background: #f4f6f8; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;}
+.container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; text-align: center;}
+h2 {color: #2c3e50; margin-bottom: 20px;}
+input, select {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;}
+button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer;}
+button:hover {background: #2980b9;}
+a {color: #3498db; text-decoration: none;}
+</style>
+"""
+
+def enviar_correo(destinatario, nombre, rol):
+    if not GMAIL_USER or not GMAIL_PASSWORD: return
+    cupos = 50 if rol == "inmobiliaria" else 3
+    cuerpo = f"<h2>Hola {nombre}</h2><p>Tu cuenta {rol} en DatoArriendo fue creada. Cupos: {cupos}</p>"
+    msg = MIMEMultipart()
+    msg['From'] = GMAIL_USER
+    msg['To'] = destinatario
+    msg['Subject'] = "Bienvenido a DatoArriendo"
+    msg.attach(MIMEText(cuerpo, 'html'))
+    try:
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(GMAIL_USER, GMAIL_PASSWORD)
+        server.sendmail(GMAIL_USER, destinatario, msg.as_string())
+        server.quit()
+    except Exception as e:
+        print("Error correo:", e)
+
 def crear_usuario(email, password, nombre, celular, rol):
     if not sheet: return False
     cupos = 50 if rol == "inmobiliaria" else 3
     usuarios_ws = sheet.worksheet("Usuarios")
     usuarios_ws.append_row([email, password, rol, nombre, celular, cupos, 0, "pendiente"])
+    enviar_correo(email, nombre, rol)
     return True
 
 def get_user(email):
@@ -52,22 +74,58 @@ def get_user(email):
 
 @app.route("/")
 def login():
-    return "<h2>Login DatoArriendo</h2><form method=post action=/login>Email:<input name=email><br>Password:<input name=password type=password><br><button>Entrar</button></form><a href=/registro>Registro</a>"
+    return render_template_string(CSS + """
+    <div class="container">
+        <h2>Login DatoArriendo</h2>
+        <form method="post" action="/login">
+            <input name="email" type="email" placeholder="Email" required>
+            <input name="password" type="password" placeholder="Password" required>
+            <button>Entrar</button>
+        </form>
+        <br><a href="/registro">¿No tienes cuenta? Regístrate aquí</a>
+    </div>""")
 
-@app.route("/registro", methods=["GET","POST"])
+@app.route("/registro", methods=["GET", "POST"])
 def registro():
-    if request.method=="GET":
-        return "<h2>Registro</h2><form method=post>Nombre:<input name=nombre><br>Celular:<input name=celular><br>Email:<input name=email><br>Password:<input name=password><br>Rol:<select name=rol><option value=arrendador>Arrendador</option><option value=inmobiliaria>Inmobiliaria</option></select><br><button>Crear</button></form>"
+    if request.method == "GET":
+        return render_template_string(CSS + """
+        <div class="container">
+            <h2>Registro DatoArriendo</h2>
+            <form method="post">
+                <input name="nombre" placeholder="Nombre Completo" required>
+                <input name="celular" placeholder="Celular" required>
+                <input name="email" type="email" placeholder="Email" required>
+                <input name="password" type="password" placeholder="Password" required>
+                <select name="rol" required>
+                    <option value="">Seleccione tipo...</option>
+                    <option value="arrendador">Arrendador - 3 consultas</option>
+                    <option value="inmobiliaria">Inmobiliaria - 50 consultas</option>
+                </select>
+                <button>Crear Cuenta</button>
+            </form>
+        </div>""")
     crear_usuario(request.form['email'], request.form['password'], request.form['nombre'], request.form['celular'], request.form['rol'])
-    return "Cuenta creada. <a href='/'>Login</a>"
+    return render_template_string(CSS + """<div class="container"><h2>Cuenta Creada!</h2><p>Estado: pendiente de aprobación</p><a href='/'>Ir a Login</a></div>""")
 
 @app.route("/login", methods=["POST"])
 def login_post():
     user = get_user(request.form['email'])
     if user and str(user['password']) == request.form['password']:
         session['user'] = user
-        return "Bienvenido! <a href='/logout'>Salir</a>"
-    return "Login invalido"
+        return redirect("/dashboard")
+    return render_template_string(CSS + """<div class="container"><h2>Error</h2><p>Login inválido</p><a href='/'>Volver</a></div>""")
+
+@app.route("/dashboard")
+def dashboard():
+    user = session.get('user')
+    if not user: return redirect("/")
+    cupos_disp = int(user['cupos_totales']) - int(user['cupos_usados'])
+    return render_template_string(CSS + f"""
+    <div class="container">
+        <h2>Bienvenido {user['nombre']}</h2>
+        <p><b>Consultas disponibles:</b> {cupos_disp}</p>
+        <a href='/logout'>Salir</a>
+    </div>""")
 
 @app.route("/logout")
 def logout():
