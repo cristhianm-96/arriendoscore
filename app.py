@@ -1,14 +1,12 @@
 from flask import Flask, request, session, redirect, render_template_string, send_from_directory
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import os
-import smtplib
+import os, smtplib, random
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 app.secret_key = "datoarriendo_2026_segura"
-print(">>> DATOARRIENDO INICIANDO...")
 
 SHEET_ID = os.environ.get("SHEET_ID")
 GMAIL_USER = os.environ.get("GMAIL_USER")
@@ -25,7 +23,6 @@ try:
 except Exception as e:
     print(">>> ERROR CRITICO GOOGLE SHEETS:", e)
 
-# Para servir el logo
 @app.route('/logo.jpeg')
 def serve_logo():
     return send_from_directory('.', 'logo.jpeg')
@@ -40,33 +37,50 @@ input, select {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd
 button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer;}
 button:hover {background: #2980b9;}
 a {color: #3498db; text-decoration: none;}
+.codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;}
 </style>
 """
 
-def enviar_correo(destinatario, nombre, rol):
+def enviar_codigo(destinatario, codigo, nombre):
     if not GMAIL_USER or not GMAIL_PASSWORD: return
-    cupos = 50 if rol == "inmobiliaria" else 3
-    cuerpo = f"<h2>Hola {nombre}</h2><p>Tu cuenta {rol} en DatoArriendo fue creada. Cupos: {cupos}</p>"
+    cuerpo = f"""
+    <h2>Hola {nombre}</h2>
+    <p>Tu código de validación para DatoArriendo es:</p>
+    <p class='codigo'>{codigo}</p>
+    <p>Este código expira en 10 minutos.</p>
+    """
     msg = MIMEMultipart()
     msg['From'] = GMAIL_USER
     msg['To'] = destinatario
-    msg['Subject'] = "Bienvenido a DatoArriendo"
+    msg['Subject'] = "Código de validación - DatoArriendo"
     msg.attach(MIMEText(cuerpo, 'html'))
     try:
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(GMAIL_USER, GMAIL_PASSWORD)
         server.sendmail(GMAIL_USER, destinatario, msg.as_string())
         server.quit()
+        return True
     except Exception as e:
         print("Error correo:", e)
+        return False
 
-def crear_usuario(email, password, nombre, celular, rol):
+def crear_usuario_temp(email, password, nombre, celular, rol, codigo):
     if not sheet: return False
     cupos = 50 if rol == "inmobiliaria" else 3
     usuarios_ws = sheet.worksheet("Usuarios")
-    usuarios_ws.append_row([email, password, rol, nombre, celular, cupos, 0, "pendiente"])
-    enviar_correo(email, nombre, rol)
+    # columnas: email,password,rol,nombre,celular,cupos_totales,cupos_usados,estado,codigo
+    usuarios_ws.append_row([email, password, rol, nombre, celular, cupos, 0, "pendiente", codigo])
     return True
+
+def activar_usuario(email, codigo):
+    if not sheet: return False
+    ws = sheet.worksheet("Usuarios")
+    users = ws.get_all_records()
+    for i, u in enumerate(users, start=2): # start=2 porque fila 1 es header
+        if u['email'] == email and str(u['codigo']) == codigo:
+            ws.update_cell(i, 8, "activo") # columna 8 = estado
+            return True
+    return False
 
 def get_user(email):
     if not sheet: return None
@@ -96,7 +110,7 @@ def registro():
         return render_template_string(CSS + """
         <div class="container">
             <img src="/logo.jpeg" class="logo">
-            <h2>DatoArriendo</h2>
+            <h2>Registro</h2>
             <form method="post">
                 <input name="nombre" placeholder="Nombre Completo" required>
                 <input name="celular" placeholder="Celular" required>
@@ -110,8 +124,35 @@ def registro():
                 <button>Crear Cuenta</button>
             </form>
         </div>""")
-    crear_usuario(request.form['email'], request.form['password'], request.form['nombre'], request.form['celular'], request.form['rol'])
-    return render_template_string(CSS + """<div class="container"><img src="/logo.jpeg" class="logo"><h2>Cuenta Creada!</h2><p>Estado: pendiente de aprobación</p><a href='/'>Ir a Login</a></div>""")
+    
+    codigo = str(random.randint(100000, 999999))
+    crear_usuario_temp(request.form['email'], request.form['password'], request.form['nombre'], request.form['celular'], request.form['rol'], codigo)
+    enviar_codigo(request.form['email'], codigo, request.form['nombre'])
+    session['email_temp'] = request.form['email']
+    return redirect("/validar")
+
+@app.route("/validar", methods=["GET", "POST"])
+def validar():
+    email = session.get('email_temp')
+    if not email: return redirect("/registro")
+    
+    if request.method == "POST":
+        if activar_usuario(email, request.form['codigo']):
+            session.pop('email_temp')
+            return render_template_string(CSS + """<div class="container"><img src="/logo.jpeg" class="logo"><h2>Cuenta Activada!</h2><p>Ya puedes iniciar sesión</p><a href='/'>Ir a Login</a></div>""")
+        else:
+            return render_template_string(CSS + """<div class="container"><h2>Código incorrecto</h2><a href='/validar'>Intentar de nuevo</a></div>""")
+    
+    return render_template_string(CSS + """
+    <div class="container">
+        <img src="/logo.jpeg" class="logo">
+        <h2>Valida tu correo</h2>
+        <p>Te enviamos un código de 6 dígitos a: <b>""" + email + """</b></p>
+        <form method="post">
+            <input name="codigo" placeholder="Código de 6 dígitos" required maxlength="6">
+            <button>Validar Cuenta</button>
+        </form>
+    </div>""")
 
 @app.route("/login", methods=["POST"])
 def login_post():
@@ -119,7 +160,7 @@ def login_post():
     if user and str(user['password']) == request.form['password']:
         session['user'] = user
         return redirect("/dashboard")
-    return render_template_string(CSS + """<div class="container"><h2>Error</h2><p>Login inválido</p><a href='/'>Volver</a></div>""")
+    return render_template_string(CSS + """<div class="container"><h2>Error</h2><p>Login inválido o cuenta pendiente</p><a href='/'>Volver</a></div>""")
 
 @app.route("/dashboard")
 def dashboard():
