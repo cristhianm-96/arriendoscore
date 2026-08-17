@@ -7,7 +7,7 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = "cambia_esta_clave_por_una_segura"
 
-# 1. CONEXIÓN CON GOOGLE SHEETS USANDO VARIABLES DE RENDER
+# 1. CONEXIÓN CON GOOGLE SHEETS
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_dict = {
     "type": os.environ["GCP_TYPE"],
@@ -24,20 +24,21 @@ creds_dict = {
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-SHEET_ID = "11VX6GHOIlRabxkb-M7abknJ_9k2hHJCNpsONMQns3pY" # TU SHEET FIJO
+SHEET_ID = "11VX6GHOIlRabxkb-M7abknJ_9k2hHJCNpsONMQns3pY"
 
 # 2. BUSCAR USUARIO
 @app.route("/", methods=["GET", "POST"])
 def index():
     usuario = None
     if request.method == "POST":
-        email = request.form["email"]
+        email_buscar = request.form["email"]
         try:
             sheet_usuarios = client.open_by_key(SHEET_ID).worksheet("Usuarios")
             data = sheet_usuarios.get_all_records()
             
             for fila in data:
-                if str(fila["Email"]).strip().lower() == email.strip().lower():
+                # OJO: ahora busca "email" en minúscula como en tu sheet
+                if str(fila["email"]).strip().lower() == email_buscar.strip().lower():
                     usuario = fila
                     break
             
