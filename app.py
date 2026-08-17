@@ -9,9 +9,10 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = "cambia_esta_clave_por_una_segura_123"
+app.secret_key = "cambia_esta_clave_por_una_segura_datoarriendo_123"
+print(">>> DATOARRIENDO INICIANDO...")
 
-# 1. Leer variables de Render - FIX CLAVE PARA EL 502
+# 1. Leer variables de Render
 SHEET_ID = os.environ.get("SHEET_ID")
 GOOGLE_CREDENTIALS_JSON = json.loads(os.environ.get("GOOGLE_CREDENTIALS_JSON", "{}").replace('\\n', '\n'))
 GMAIL_USER = os.environ.get("GMAIL_USER")
@@ -19,14 +20,15 @@ GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD")
 
 # 2. Conectar con Google Sheets
 scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
+sheet = None
 try:
+    print(">>> INTENTANDO CONECTAR A GOOGLE...")
     creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, scope)
     client = gspread.authorize(creds)
     sheet = client.open_by_key(SHEET_ID)
-    print("Conexión a Google Sheets exitosa")
+    print(">>> CONEXION A GOOGLE SHEETS OK")
 except Exception as e:
-    print("ERROR CONECTANDO A GOOGLE SHEETS:", e)
-    sheet = None
+    print(">>> ERROR CRITICO GOOGLE SHEETS:", e)
 
 def enviar_correo(destinatario, nombre, rol):
     if not GMAIL_USER or not GMAIL_PASSWORD:
@@ -34,9 +36,17 @@ def enviar_correo(destinatario, nombre, rol):
         return False
     
     cupos = 50 if rol == "inmobiliaria" else 3
-    asunto = "Bienvenido a Arriendoscore"
-    cuerpo = f"<h2>Hola {nombre}</h2><p>Tu cuenta {rol} fue creada. Cupos: {cupos}</p><p>Estado: pendiente</p>"
-    
+    asunto = "Bienvenido a DatoArriendo"
+    cuerpo = f"""
+    <html><body style="font-family:Arial;">
+        <h2 style="color:#2c3e50;">Hola {nombre}</h2>
+        <p>Tu cuenta en <b>DatoArriendo</b> ha sido creada exitosamente.</p>
+        <p><b>Tipo de cuenta:</b> {rol.capitalize()}<br>
+        <b>Cupos asignados:</b> {cupos}</p>
+        <p style="background:#f8f9fa; padding:15px;">Tu cuenta está en estado 'pendiente'. La activaremos pronto.</p>
+        <p>Saludos,<br><b>Equipo DatoArriendo</b></p>
+    </body></html>
+    """
     msg = MIMEMultipart()
     msg['From'] = GMAIL_USER
     msg['To'] = destinatario
@@ -65,11 +75,13 @@ def get_user(email):
     return None
 
 def crear_usuario(email, password, nombre, celular, rol):
+    print(f">>> CREANDO USUARIO: {email}")
     if not sheet: return False
     cupos = 50 if rol == "inmobiliaria" else 3
     usuarios_ws = sheet.worksheet("Usuarios")
     usuarios_ws.append_row([email, password, rol, nombre, celular, cupos, 0, "pendiente"])
-    enviar_correo(email, nombre, rol) # Si falla, solo lo imprime
+    enviar_correo(email, nombre, rol)
+    print(">>> USUARIO GUARDADO EN SHEET")
     return True
 
 def buscar_cedula(cc):
@@ -98,36 +110,36 @@ def reportar(cc, motivo, user):
     
     return f"Reporte guardado. Cupos restantes: {cupos_disp - 1}"
 
-# 4. Rutas HTML
+# 4. Rutas HTML con branding DatoArriendo
 @app.route("/")
 def login():
-    return render_template_string("""<html><head><title>Login</title></head>
+    return render_template_string("""<html><head><title>DatoArriendo Login</title></head>
     <body style="font-family:Arial; max-width:400px; margin:50px auto;">
-        <h2>Login Arriendoscore</h2>
+        <h2 style="color:#2c3e50;">Login DatoArriendo</h2>
         <form method="post" action="/login">
             Email: <br><input name="email" type="email" required style="width:100%; padding:8px;"><br><br>
             Password: <br><input name="password" type="password" required style="width:100%; padding:8px;"><br><br>
-            <button style="padding:10px 20px; background:#3498db; color:white; border:none;">Entrar</button>
+            <button style="padding:10px 20px; background:#3498db; color:white; border:none; cursor:pointer;">Entrar</button>
         </form>
-        <br><a href="/registro">Regístrate aquí</a>
+        <br><p>¿No tienes cuenta? <a href="/registro">Regístrate aquí</a></p>
     </body></html>""")
 
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
     if request.method == "GET":
-        return render_template_string("""<html><head><title>Registro</title></head>
+        return render_template_string("""<html><head><title>Registro DatoArriendo</title></head>
         <body style="font-family:Arial; max-width:400px; margin:50px auto;">
-            <h2>Registro Arriendoscore</h2>
+            <h2 style="color:#2c3e50;">Registro DatoArriendo</h2>
             <form method="post">
-                Nombre: <br><input name="nombre" required style="width:100%; padding:8px;"><br><br>
+                Nombre/Razón Social: <br><input name="nombre" required style="width:100%; padding:8px;"><br><br>
                 Celular: <br><input name="celular" required style="width:100%; padding:8px;"><br><br>
                 Email: <br><input name="email" type="email" required style="width:100%; padding:8px;"><br><br>
                 Password: <br><input name="password" type="password" required style="width:100%; padding:8px;"><br><br>
-                Tipo: <br>
+                Tipo de cuenta: <br>
                 <select name="rol" required style="width:100%; padding:8px;">
                     <option value="">Seleccione...</option>
-                    <option value="arrendador">Arrendador - 3 cupos</option>
-                    <option value="inmobiliaria">Inmobiliaria - 50 cupos</option>
+                    <option value="arrendador">Arrendador - Hasta 3 consultas</option>
+                    <option value="inmobiliaria">Inmobiliaria - Hasta 50 consultas</option>
                 </select><br><br>
                 <button style="padding:10px 20px; background:#27ae60; color:white; border:none;">Crear Cuenta</button>
             </form>
@@ -141,7 +153,7 @@ def registro():
         return "Ese email ya existe. <a href='/registro'>Intentar otra vez</a>"
     
     crear_usuario(request.form['email'], request.form['password'], request.form['nombre'], request.form['celular'], request.form['rol'])
-    return "Cuenta creada. Queda en estado 'pendiente'. <a href='/'>Ir a Login</a>"
+    return "Cuenta creada en DatoArriendo. Queda en estado 'pendiente'. <a href='/'>Ir a Login</a>"
 
 @app.route("/login", methods=["POST"])
 def login_post():
@@ -151,20 +163,22 @@ def login_post():
     if user and str(user['password']) == password:
         session['user'] = user
         return redirect("/dashboard")
-    return "Login invalido o cuenta pendiente. <a href='/'>Volver</a>"
+    return "Login invalido o cuenta pendiente de activación. <a href='/'>Volver</a>"
 
 @app.route("/dashboard")
 def dashboard():
     user = session.get('user')
     if not user: return redirect("/")
     cupos_disp = int(user['cupos_totales']) - int(user['cupos_usados'])
-    tipo = "Inmobiliaria - 50 cupos" if user['rol'] == "inmobiliaria" else "Arrendador - 3 cupos"
-    return render_template_string(f"""<html><body style="font-family:Arial; max-width:600px; margin:30px auto;">
-        <h2>Bienvenido {user['nombre']}</h2>
-        <p><b>Rol:</b> {tipo} | <b>Cupos:</b> {cupos_disp}</p><hr>
+    tipo = "Inmobiliaria - 50 consultas" if user['rol'] == "inmobiliaria" else "Arrendador - 3 consultas"
+    return render_template_string(f"""<html><head><title>DatoArriendo Dashboard</title></head>
+    <body style="font-family:Arial; max-width:600px; margin:30px auto;">
+        <h2>Bienvenido a DatoArriendo, {user['nombre']}</h2>
+        <p><b>Rol:</b> {tipo} | <b>Consultas disponibles:</b> {cupos_disp}</p><hr>
         <h3>Consultar Autorización</h3>
         <form method="post" action="/buscar">
-            Cédula: <input name="cc" required> <button>Buscar</button>
+            Buscar por cédula: <input name="cc" required>
+            <button>Buscar</button>
         </form>
         <br><a href='/logout'>Salir</a>
     </body></html>""")
@@ -177,17 +191,19 @@ def buscar():
     resultado = buscar_cedula(cc)
     if resultado:
         return render_template_string(f"""<html><body style="font-family:Arial; max-width:600px; margin:30px auto;">
-        <h3>Resultado</h3>
+        <h3>Resultado DatoArriendo</h3>
         <b>CC:</b> {resultado['cc']}<br><b>Celular:</b> {resultado['celular']}<br>
-        <b>Estado:</b> {resultado['estado']}<br><b>Fecha:</b> {resultado['fecha_autorizacion']}<br><br>
+        <b>Estado:</b> <span style="color:green;">{resultado['estado']}</span><br>
+        <b>Fecha Autorización:</b> {resultado['fecha_autorizacion']}<br><b>Código:</b> {resultado['codigo']}<br><br>
         <h4>Reportar</h4>
         <form method="post" action="/reportar">
             <input type="hidden" name="cc" value="{cc}">
-            Motivo: <input name="motivo" required> <button>Reportar</button>
+            Motivo: <input name="motivo" placeholder="Ej: Mora 2 meses" required>
+            <button>Reportar y descontar consulta</button>
         </form>
-        <br><a href='/dashboard'>Volver</a>
+        <br><a href='/dashboard'>Buscar otra cédula</a>
         </body></html>""")
-    return f"No se encontró CC {cc} <br><a href='/dashboard'>Volver</a>"
+    return f"No se encontró CC {cc} en DatoArriendo <br><a href='/dashboard'>Volver</a>"
 
 @app.route("/reportar", methods=["POST"])
 def reportar_post():
