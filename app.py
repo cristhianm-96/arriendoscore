@@ -1,61 +1,72 @@
-import os
-import json
 from flask import Flask, render_template, request
+import os
+import gspread
 from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
 
 app = Flask(__name__)
 
-# 1. CONEXIÓN CON GOOGLE SHEETS - VERSIÓN QUE SÍ FUNCIONA
-SCOPE = ['https://www.googleapis.com/auth/spreadsheets']
-creds_json_str = os.environ.get('GOOGLE_CREDS_JSON')
+# ===== CONFIGURACIÓN GOOGLE SHEETS =====
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets.readonly"
+]
 
-# Este replace arregla el problema del \n
-creds_json_str = creds_json_str.replace('\\n', '\n')
+# LEER CREDENCIALES DESDE VARIABLES SEPARADAS - ASI NO FALLA
+creds_info = {
+    "type": "service_account",
+    "project_id": os.environ.get("GCP_PROJECT_ID"),
+    "private_key_id": os.environ.get("GCP_PRIVATE_KEY_ID"),
+    "private_key": os.environ.get("GCP_PRIVATE_KEY").replace('\\n', '\n'),
+    "client_email": os.environ.get("GCP_CLIENT_EMAIL"),
+    "client_id": os.environ.get("GCP_CLIENT_ID"),
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": os.environ.get("GCP_CLIENT_CERT_URL")
+}
 
-CREDS_JSON = json.loads(creds_json_str)
-CREDS = Credentials.from_service_account_info(CREDS_JSON, scopes=SCOPE)
-SERVICE = build('sheets', 'v4', credentials=CREDS)
+creds = Credentials.from_service_account_info(creds_info, scopes=SCOPES)
+client = gspread.authorize(creds)
 
-# 2. DATOS DE TU SHEET
-SHEET_ID = os.environ.get('SHEET_ID')
-RANGO = 'Hoja1!A:G' # Cambia "Hoja1" si tu pestaña se llama diferente
+# CAMBIA ESTO POR EL NOMBRE EXACTO DE TU GOOGLE SHEET
+SHEET_NAME = "BaseDatos" 
+sheet = client.open(SHEET_NAME).sheet1
 
-# 3. RUTAS DE LA WEB
-@app.route('/')
+# ===== RUTAS DE LA APP =====
+@app.route("/", methods=["GET", "POST"])
 def index():
-    return render_template('index.html')
+    if request.method == "POST":
+        cedula = request.form.get("cedula")
+        resultado = buscar_cedula(cedula)
+        return render_template("resultado.html", resultado=resultado)
+    return render_template("index.html")
 
-@app.route('/buscar', methods=['POST'])
-def buscar():
-    cedula_buscar = request.form['cedula']
-    
-    try:
-        result = SERVICE.spreadsheets().values().get(spreadsheetId=SHEET_ID, range=RANGO).execute()
-        valores = result.get('values', [])
-        
-        datos = None
-        for fila in valores[1:]: 
-            if len(fila) > 0 and fila[0] == cedula_buscar:
-                datos = {
-                    'cedula': fila[0],
-                    'nombre': fila[1] if len(fila) > 1 else '',
-                    'telefono': fila[2] if len(fila) > 2 else '',
-                    'direccion': fila[3] if len(fila) > 3 else '',
-                    'estado': fila[4] if len(fila) > 4 else '',
-                    'fecha': fila[5] if len(fila) > 5 else '',
-                    'notas': fila[6] if len(fila) > 6 else ''
-                }
-                break
-        
-        return render_template('resultado.html', resultado=datos)
-        
-    except Exception as e:
-        return f"Error al conectar con Google: {e}"
-
-@app.route('/admin')
+@app.route("/admin")
 def admin():
-    return render_template('admin.html')
+    return render_template("admin.html")
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+def buscar_cedula(cedula):
+    try:
+        # Busca la cédula en la columna A
+        cell = sheet.find(cedula)
+        if cell:
+            # Obtiene toda la fila de datos
+            row = sheet.row_values(cell.row)
+            # AJUSTA EL ORDEN SEGÚN TUS COLUMNAS A:G
+            datos = {
+                "cedula": row[0],
+                "nombre": row[1],
+                "telefono": row[2],
+                "direccion": row[3],
+                "estado": row[4],
+                "fecha": row[5],
+                "notas": row[6]
+            }
+            return datos
+        else:
+            return None
+    except Exception as e:
+        print(f"Error buscando cédula: {e}")
+        return None
+
+if __name__ == "__main__":
+    app.run(debug=True)
