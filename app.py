@@ -24,7 +24,7 @@ client = gspread.authorize(creds)
 sheet = client.open_by_key(SHEET_ID)
 
 def enviar_correo(destinatario, nombre, rol):
-    """Envía correo de confirmación"""
+    """Envía correo de confirmación - Versión anti 502"""
     cupos = 50 if rol == "inmobiliaria" else 3
     asunto = "Bienvenido a Arriendoscore"
     cuerpo = f"""
@@ -50,36 +50,41 @@ def enviar_correo(destinatario, nombre, rol):
     msg.attach(MIMEText(cuerpo, 'html'))
     
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
+        # FIX CLAVE: Usar SMTP_SSL puerto 465. Render bloquea el 587
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(GMAIL_USER, GMAIL_PASSWORD)
         server.sendmail(GMAIL_USER, destinatario, msg.as_string())
         server.quit()
-        print(f"Correo enviado a {destinatario}")
+        print(f"Correo enviado exitosamente a {destinatario}")
         return True
     except Exception as e:
+        # Si falla el correo, solo lo loguea pero NO tumba la app
         print("Error enviando correo:", e)
         return False
 
 def get_user(email):
-    users = sheet.worksheet("Usuarios").get_all_records()
-    for u in users:
-        if u['email'] == email and u['estado'] == 'activo':
-            return u
+    try:
+        users = sheet.worksheet("Usuarios").get_all_records()
+        for u in users:
+            if u['email'] == email and u['estado'] == 'activo':
+                return u
+    except: pass
     return None
 
 def crear_usuario(email, password, nombre, celular, rol):
     cupos = 50 if rol == "inmobiliaria" else 3
     usuarios_ws = sheet.worksheet("Usuarios")
     usuarios_ws.append_row([email, password, rol, nombre, celular, cupos, 0, "pendiente"])
-    enviar_correo(email, nombre, rol)
+    enviar_correo(email, nombre, rol) # Si falla, sigue normal
     return True
 
 def buscar_cedula(cc):
-    autorizaciones = sheet.worksheet("Autorizaciones").get_all_records()
-    for a in autorizaciones:
-        if str(a['cc']) == str(cc):
-            return a
+    try:
+        autorizaciones = sheet.worksheet("Autorizaciones").get_all_records()
+        for a in autorizaciones:
+            if str(a['cc']) == str(cc):
+                return a
+    except: pass
     return None
 
 def reportar(cc, motivo, user):
@@ -101,8 +106,7 @@ def reportar(cc, motivo, user):
 @app.route("/")
 def login():
     return render_template_string("""
-    <html>
-    <head><title>Arriendoscore Login</title></head>
+    <html><head><title>Arriendoscore Login</title></head>
     <body style="font-family:Arial; max-width:400px; margin:50px auto;">
         <h2 style="color:#2c3e50;">Login Arriendoscore</h2>
         <form method="post" action="/login">
@@ -110,16 +114,14 @@ def login():
             Password: <br><input name="password" type="password" style="width:100%; padding:8px;" required><br><br>
             <button style="padding:10px 20px; background:#3498db; color:white; border:none; cursor:pointer;">Entrar</button>
         </form>
-        <br>
-        <p>¿No tienes cuenta? <a href="/registro">Regístrate aquí</a></p>
+        <br><p>¿No tienes cuenta? <a href="/registro">Regístrate aquí</a></p>
     </body></html>""")
 
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
     if request.method == "GET":
         return render_template_string("""
-        <html>
-        <head><title>Registro</title></head>
+        <html><head><title>Registro</title></head>
         <body style="font-family:Arial; max-width:400px; margin:50px auto;">
             <h2 style="color:#2c3e50;">Registro Arriendoscore</h2>
             <form method="post" action="/registro">
@@ -127,15 +129,13 @@ def registro():
                 Celular: <br><input name="celular" style="width:100%; padding:8px;" required><br><br>
                 Email: <br><input name="email" type="email" style="width:100%; padding:8px;" required><br><br>
                 Password: <br><input name="password" type="password" style="width:100%; padding:8px;" required><br><br>
-                
                 Tipo de cuenta: <br>
                 <select name="rol" style="width:100%; padding:8px;" required>
                     <option value="">Seleccione...</option>
                     <option value="arrendador">Arrendador - Hasta 3 arriendos</option>
                     <option value="inmobiliaria">Inmobiliaria - Hasta 50 arriendos</option>
                 </select><br><br>
-                
-                <button style="padding:10px 20px; background:#27ae60; color:white; border:none; cursor:pointer;">Crear Cuenta</button>
+                <button style="padding:10px 20px; background:#27ae60; color:white; border:none;">Crear Cuenta</button>
             </form>
             <br><a href="/">Volver a Login</a>
         </body></html>""")
@@ -145,14 +145,8 @@ def registro():
     if any(u['email'] == email for u in usuarios_ws):
         return "Ese email ya existe. <a href='/registro'>Intentar otra vez</a>"
     
-    crear_usuario(
-        request.form['email'],
-        request.form['password'],
-        request.form['nombre'],
-        request.form['celular'],
-        request.form['rol']
-    )
-    return "Cuenta creada. Se envió un correo de confirmación a tu email. Queda en estado 'pendiente'. <a href='/'>Ir a Login</a>"
+    crear_usuario(request.form['email'], request.form['password'], request.form['nombre'], request.form['celular'], request.form['rol'])
+    return "Cuenta creada. Se envió un correo de confirmación. Queda en estado 'pendiente'. <a href='/'>Ir a Login</a>"
 
 @app.route("/login", methods=["POST"])
 def login_post():
@@ -171,20 +165,17 @@ def dashboard():
     cupos_disp = int(user['cupos_totales']) - int(user['cupos_usados'])
     tipo = "Inmobiliaria - 50 cupos" if user['rol'] == "inmobiliaria" else "Arrendador - 3 cupos"
     return render_template_string(f"""
-    <html>
-    <head><title>Dashboard</title></head>
+    <html><head><title>Dashboard</title></head>
     <body style="font-family:Arial; max-width:600px; margin:30px auto;">
         <h2>Bienvenido {user['nombre']}</h2>
-        <p><b>Rol:</b> {tipo} | <b>Cupos disponibles:</b> {cupos_disp}</p>
-        <hr>
+        <p><b>Rol:</b> {tipo} | <b>Cupos disponibles:</b> {cupos_disp}</p><hr>
         <h3>Consultar Autorización</h3>
         <form method="post" action="/buscar">
             Buscar por cédula: <input name="cc" required>
             <button>Buscar</button>
         </form>
         <br><a href='/logout'>Salir</a>
-    </body></html>
-    """)
+    </body></html>""")
 
 @app.route("/buscar", methods=["POST"])
 def buscar():
@@ -196,12 +187,9 @@ def buscar():
         return render_template_string(f"""
         <html><body style="font-family:Arial; max-width:600px; margin:30px auto;">
         <h3>Resultado de búsqueda</h3>
-        <b>CC:</b> {resultado['cc']}<br>
-        <b>Celular:</b> {resultado['celular']}<br>
+        <b>CC:</b> {resultado['cc']}<br><b>Celular:</b> {resultado['celular']}<br>
         <b>Estado:</b> <span style="color:green;">{resultado['estado']}</span><br>
-        <b>Fecha Autorización:</b> {resultado['fecha_autorizacion']}<br>
-        <b>Código:</b> {resultado['codigo']}<br><br>
-        
+        <b>Fecha Autorización:</b> {resultado['fecha_autorizacion']}<br><b>Código:</b> {resultado['codigo']}<br><br>
         <h4>Reportar</h4>
         <form method="post" action="/reportar">
             <input type="hidden" name="cc" value="{cc}">
@@ -209,8 +197,7 @@ def buscar():
             <button>Reportar y descontar cupo</button>
         </form>
         <br><a href='/dashboard'>Buscar otra cédula</a>
-        </body></html>
-        """)
+        </body></html>""")
     return f"No se encontró CC {cc} <br><a href='/dashboard'>Volver</a>"
 
 @app.route("/reportar", methods=["POST"])
