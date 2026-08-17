@@ -11,37 +11,31 @@ from datetime import datetime
 app = Flask(__name__)
 app.secret_key = "cambia_esta_clave_por_una_segura_123"
 
-# 1. Leer variables de Render
+# 1. Leer variables de Render - FIX CLAVE PARA EL 502
 SHEET_ID = os.environ.get("SHEET_ID")
-GOOGLE_CREDENTIALS_JSON = json.loads(os.environ.get("GOOGLE_CREDENTIALS_JSON"))
+GOOGLE_CREDENTIALS_JSON = json.loads(os.environ.get("GOOGLE_CREDENTIALS_JSON", "{}").replace('\\n', '\n'))
 GMAIL_USER = os.environ.get("GMAIL_USER")
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD")
 
 # 2. Conectar con Google Sheets
 scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, scope)
-client = gspread.authorize(creds)
-sheet = client.open_by_key(SHEET_ID)
+try:
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDENTIALS_JSON, scope)
+    client = gspread.authorize(creds)
+    sheet = client.open_by_key(SHEET_ID)
+    print("Conexión a Google Sheets exitosa")
+except Exception as e:
+    print("ERROR CONECTANDO A GOOGLE SHEETS:", e)
+    sheet = None
 
 def enviar_correo(destinatario, nombre, rol):
-    """Envía correo de confirmación - Versión anti 502"""
+    if not GMAIL_USER or not GMAIL_PASSWORD:
+        print("Faltan variables GMAIL_USER o GMAIL_PASSWORD")
+        return False
+    
     cupos = 50 if rol == "inmobiliaria" else 3
     asunto = "Bienvenido a Arriendoscore"
-    cuerpo = f"""
-    <html>
-    <body style="font-family:Arial; line-height:1.6;">
-        <h2 style="color:#2c3e50;">Hola {nombre}</h2>
-        <p>Tu cuenta en <b>Arriendoscore</b> ha sido creada exitosamente.</p>
-        <p><b>Tipo de cuenta:</b> {rol.capitalize()}<br>
-        <b>Cupos asignados:</b> {cupos}</p>
-        <p style="background:#f8f9fa; padding:15px; border-left:4px solid #3498db;">
-        Tu cuenta está en estado 'pendiente'. Un administrador la activará en las próximas horas.
-        </p>
-        <p>Una vez activa podrás consultar y reportar arrendatarios.</p>
-        <br>
-        <p>Saludos,<br><b>Equipo Arriendoscore</b></p>
-    </body></html>
-    """
+    cuerpo = f"<h2>Hola {nombre}</h2><p>Tu cuenta {rol} fue creada. Cupos: {cupos}</p><p>Estado: pendiente</p>"
     
     msg = MIMEMultipart()
     msg['From'] = GMAIL_USER
@@ -50,44 +44,46 @@ def enviar_correo(destinatario, nombre, rol):
     msg.attach(MIMEText(cuerpo, 'html'))
     
     try:
-        # FIX CLAVE: Usar SMTP_SSL puerto 465. Render bloquea el 587
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(GMAIL_USER, GMAIL_PASSWORD)
         server.sendmail(GMAIL_USER, destinatario, msg.as_string())
         server.quit()
-        print(f"Correo enviado exitosamente a {destinatario}")
+        print(f"Correo enviado a {destinatario}")
         return True
     except Exception as e:
-        # Si falla el correo, solo lo loguea pero NO tumba la app
         print("Error enviando correo:", e)
         return False
 
 def get_user(email):
+    if not sheet: return None
     try:
         users = sheet.worksheet("Usuarios").get_all_records()
         for u in users:
             if u['email'] == email and u['estado'] == 'activo':
                 return u
-    except: pass
+    except Exception as e: print("Error get_user:", e)
     return None
 
 def crear_usuario(email, password, nombre, celular, rol):
+    if not sheet: return False
     cupos = 50 if rol == "inmobiliaria" else 3
     usuarios_ws = sheet.worksheet("Usuarios")
     usuarios_ws.append_row([email, password, rol, nombre, celular, cupos, 0, "pendiente"])
-    enviar_correo(email, nombre, rol) # Si falla, sigue normal
+    enviar_correo(email, nombre, rol) # Si falla, solo lo imprime
     return True
 
 def buscar_cedula(cc):
+    if not sheet: return None
     try:
         autorizaciones = sheet.worksheet("Autorizaciones").get_all_records()
         for a in autorizaciones:
             if str(a['cc']) == str(cc):
                 return a
-    except: pass
+    except Exception as e: print("Error buscar_cedula:", e)
     return None
 
 def reportar(cc, motivo, user):
+    if not sheet: return "Error: No hay conexión con Sheet"
     cupos_disp = int(user['cupos_totales']) - int(user['cupos_usados'])
     if cupos_disp <= 0:
         return "Error: No tienes cupos disponibles"
@@ -102,38 +98,36 @@ def reportar(cc, motivo, user):
     
     return f"Reporte guardado. Cupos restantes: {cupos_disp - 1}"
 
-# 4. Rutas
+# 4. Rutas HTML
 @app.route("/")
 def login():
-    return render_template_string("""
-    <html><head><title>Arriendoscore Login</title></head>
+    return render_template_string("""<html><head><title>Login</title></head>
     <body style="font-family:Arial; max-width:400px; margin:50px auto;">
-        <h2 style="color:#2c3e50;">Login Arriendoscore</h2>
+        <h2>Login Arriendoscore</h2>
         <form method="post" action="/login">
-            Email: <br><input name="email" type="email" style="width:100%; padding:8px;" required><br><br>
-            Password: <br><input name="password" type="password" style="width:100%; padding:8px;" required><br><br>
-            <button style="padding:10px 20px; background:#3498db; color:white; border:none; cursor:pointer;">Entrar</button>
+            Email: <br><input name="email" type="email" required style="width:100%; padding:8px;"><br><br>
+            Password: <br><input name="password" type="password" required style="width:100%; padding:8px;"><br><br>
+            <button style="padding:10px 20px; background:#3498db; color:white; border:none;">Entrar</button>
         </form>
-        <br><p>¿No tienes cuenta? <a href="/registro">Regístrate aquí</a></p>
+        <br><a href="/registro">Regístrate aquí</a>
     </body></html>""")
 
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
     if request.method == "GET":
-        return render_template_string("""
-        <html><head><title>Registro</title></head>
+        return render_template_string("""<html><head><title>Registro</title></head>
         <body style="font-family:Arial; max-width:400px; margin:50px auto;">
-            <h2 style="color:#2c3e50;">Registro Arriendoscore</h2>
-            <form method="post" action="/registro">
-                Nombre/Razón Social: <br><input name="nombre" style="width:100%; padding:8px;" required><br><br>
-                Celular: <br><input name="celular" style="width:100%; padding:8px;" required><br><br>
-                Email: <br><input name="email" type="email" style="width:100%; padding:8px;" required><br><br>
-                Password: <br><input name="password" type="password" style="width:100%; padding:8px;" required><br><br>
-                Tipo de cuenta: <br>
-                <select name="rol" style="width:100%; padding:8px;" required>
+            <h2>Registro Arriendoscore</h2>
+            <form method="post">
+                Nombre: <br><input name="nombre" required style="width:100%; padding:8px;"><br><br>
+                Celular: <br><input name="celular" required style="width:100%; padding:8px;"><br><br>
+                Email: <br><input name="email" type="email" required style="width:100%; padding:8px;"><br><br>
+                Password: <br><input name="password" type="password" required style="width:100%; padding:8px;"><br><br>
+                Tipo: <br>
+                <select name="rol" required style="width:100%; padding:8px;">
                     <option value="">Seleccione...</option>
-                    <option value="arrendador">Arrendador - Hasta 3 arriendos</option>
-                    <option value="inmobiliaria">Inmobiliaria - Hasta 50 arriendos</option>
+                    <option value="arrendador">Arrendador - 3 cupos</option>
+                    <option value="inmobiliaria">Inmobiliaria - 50 cupos</option>
                 </select><br><br>
                 <button style="padding:10px 20px; background:#27ae60; color:white; border:none;">Crear Cuenta</button>
             </form>
@@ -141,12 +135,13 @@ def registro():
         </body></html>""")
     
     email = request.form['email']
+    if not sheet: return "Error: No hay conexión con Google Sheets. Revisa Logs"
     usuarios_ws = sheet.worksheet("Usuarios").get_all_records()
     if any(u['email'] == email for u in usuarios_ws):
         return "Ese email ya existe. <a href='/registro'>Intentar otra vez</a>"
     
     crear_usuario(request.form['email'], request.form['password'], request.form['nombre'], request.form['celular'], request.form['rol'])
-    return "Cuenta creada. Se envió un correo de confirmación. Queda en estado 'pendiente'. <a href='/'>Ir a Login</a>"
+    return "Cuenta creada. Queda en estado 'pendiente'. <a href='/'>Ir a Login</a>"
 
 @app.route("/login", methods=["POST"])
 def login_post():
@@ -156,7 +151,7 @@ def login_post():
     if user and str(user['password']) == password:
         session['user'] = user
         return redirect("/dashboard")
-    return "Login invalido o cuenta pendiente de activación. <a href='/'>Volver</a>"
+    return "Login invalido o cuenta pendiente. <a href='/'>Volver</a>"
 
 @app.route("/dashboard")
 def dashboard():
@@ -164,15 +159,12 @@ def dashboard():
     if not user: return redirect("/")
     cupos_disp = int(user['cupos_totales']) - int(user['cupos_usados'])
     tipo = "Inmobiliaria - 50 cupos" if user['rol'] == "inmobiliaria" else "Arrendador - 3 cupos"
-    return render_template_string(f"""
-    <html><head><title>Dashboard</title></head>
-    <body style="font-family:Arial; max-width:600px; margin:30px auto;">
+    return render_template_string(f"""<html><body style="font-family:Arial; max-width:600px; margin:30px auto;">
         <h2>Bienvenido {user['nombre']}</h2>
-        <p><b>Rol:</b> {tipo} | <b>Cupos disponibles:</b> {cupos_disp}</p><hr>
+        <p><b>Rol:</b> {tipo} | <b>Cupos:</b> {cupos_disp}</p><hr>
         <h3>Consultar Autorización</h3>
         <form method="post" action="/buscar">
-            Buscar por cédula: <input name="cc" required>
-            <button>Buscar</button>
+            Cédula: <input name="cc" required> <button>Buscar</button>
         </form>
         <br><a href='/logout'>Salir</a>
     </body></html>""")
@@ -184,19 +176,16 @@ def buscar():
     cc = request.form['cc']
     resultado = buscar_cedula(cc)
     if resultado:
-        return render_template_string(f"""
-        <html><body style="font-family:Arial; max-width:600px; margin:30px auto;">
-        <h3>Resultado de búsqueda</h3>
+        return render_template_string(f"""<html><body style="font-family:Arial; max-width:600px; margin:30px auto;">
+        <h3>Resultado</h3>
         <b>CC:</b> {resultado['cc']}<br><b>Celular:</b> {resultado['celular']}<br>
-        <b>Estado:</b> <span style="color:green;">{resultado['estado']}</span><br>
-        <b>Fecha Autorización:</b> {resultado['fecha_autorizacion']}<br><b>Código:</b> {resultado['codigo']}<br><br>
+        <b>Estado:</b> {resultado['estado']}<br><b>Fecha:</b> {resultado['fecha_autorizacion']}<br><br>
         <h4>Reportar</h4>
         <form method="post" action="/reportar">
             <input type="hidden" name="cc" value="{cc}">
-            Motivo: <input name="motivo" placeholder="Ej: Mora 2 meses" required>
-            <button>Reportar y descontar cupo</button>
+            Motivo: <input name="motivo" required> <button>Reportar</button>
         </form>
-        <br><a href='/dashboard'>Buscar otra cédula</a>
+        <br><a href='/dashboard'>Volver</a>
         </body></html>""")
     return f"No se encontró CC {cc} <br><a href='/dashboard'>Volver</a>"
 
@@ -204,9 +193,7 @@ def buscar():
 def reportar_post():
     user = session.get('user')
     if not user: return redirect("/")
-    cc = request.form['cc']
-    motivo = request.form['motivo']
-    msg = reportar(cc, motivo, user)
+    msg = reportar(request.form['cc'], request.form['motivo'], user)
     return f"<p>{msg}</p><a href='/dashboard'>Volver</a>"
 
 @app.route("/logout")
