@@ -100,35 +100,40 @@ def get_inquilinos(email_usuario):
         return [i for i in todos if str(i.get('email_propietario','')).strip() == email_usuario]
     except: return []
 
+# CAMBIO 1: Al reportar, se guarda en Inquilinos Y en Base_Universal de una vez
 def add_inquilino(data):
     token = str(uuid.uuid4())
     fecha = datetime.datetime.now().strftime("%Y-%m-%d")
     fecha_limite = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-    sheet.worksheet("Inquilinos").append_row([
+
+    fila_completa = [
         data['email_propietario'], data['nombre'], data['cedula'], data['celular'],
         data['correo'], data['fecha_inicio'], data['fecha_fin'], data['meses_totales'],
         data['pagos_totales'], data['pagos_tiempo'], data['dias_atraso'], data['paz_salvo'], data['evidencias'],
-        fecha, fecha_limite, "pendiente_7dias", token, ""
-    ])
+        fecha, fecha_limite, "activo", token, "" # ESTADO = ACTIVO directo
+    ]
+
+    # 1. Guardar en Inquilinos para que lo vea el usuario
+    sheet.worksheet("Inquilinos").append_row(fila_completa)
+
+    # 2. Guardar en Base_Universal para que quede público para siempre
+    sheet.worksheet("Base_Universal").append_row(fila_completa)
+
     if data['correo']:
         enviar_correo_validacion_inquilino(data['correo'], data['nombre'], token, data)
 
+# CAMBIO 2: Ya no copia a Base_Universal porque ya está ahí desde el inicio
 def activar_inquilino(token, accion, comentario=""):
     ws = sheet.worksheet("Inquilinos")
-    ws_base = sheet.worksheet("Base_Universal")
     inquilinos = ws.get_all_records()
     for idx, i in enumerate(inquilinos):
         if str(i.get('token','')) == token and str(i.get('estado','')) == 'pendiente_7dias':
             fila = idx + 2
-            fila_completa = ws.row_values(fila)
-
             if accion == "aceptar":
                 ws.update_cell(fila, 16, "activo")
-                ws_base.append_row(fila_completa)
             else:
                 ws.update_cell(fila, 16, "en_disputa")
                 ws.update_cell(fila, 18, comentario)
-
             ws.update_cell(fila, 17, "")
             return True
     return False
@@ -139,7 +144,7 @@ def delete_inquilino(email_usuario, cedula):
         inquilinos = ws.get_all_records()
         for idx, r in enumerate(inquilinos):
             if str(r.get('email_propietario','')) == email_usuario and str(r.get('cedula','')) == cedula:
-                ws.delete_rows(idx + 2)
+                ws.delete_rows(idx + 2) # SOLO BORRA DE INQUILINOS. BASE_UNIVERSAL QUEDA INTACTA
                 return True
     except Exception as e: print("Error eliminando:", e)
     return False
@@ -187,14 +192,13 @@ def login_post():
 def dashboard():
     user = session.get('user');
     if not user: return redirect("/")
-    
-    # DATOS DINAMICOS
+
     inquilinos = get_inquilinos(user['email'])
     num_arriendos = len(inquilinos)
-    
+
     limite = 50 if user['rol'] == "inmobiliaria" else 3
     arriendos_disponibles = limite - num_arriendos
-    
+
     mensaje_consulta = ""
     if request.method == "POST":
         if 'btn_consultar' in request.form:
@@ -208,12 +212,12 @@ def dashboard():
                     mensaje_consulta = f"<div style='padding:12px; background:#27ae60; color:white; border-radius:8px; margin:10px 0;'><b>Historial encontrado:</b> {historiales[0].get('nombre')}<br>{total_tiempo} de {total_meses} meses pagados a tiempo. Último atraso máx: {historiales[-1].get('dias_atraso')} días</div>"
                 else: mensaje_consulta = "<div style='padding:12px; background:#7f8c8d; color:white; border-radius:8px; margin:10px 0;'>Cédula sin historial en Base Universal</div>"
             except: mensaje_consulta = "<div style='padding:12px; background:#e74c3c; color:white; border-radius:8px; margin:10px 0;'>Error: Crea la pestaña Base_Universal</div>"
-        
+
         elif 'btn_agregar' in request.form:
             if arriendos_disponibles > 0:
                 data = request.form.to_dict(); data['email_propietario'] = user['email']
                 add_inquilino(data)
-                return redirect("/dashboard?msg=correo_enviado")
+                return redirect("/dashboard?msg=reportado")
             else:
                 return redirect("/dashboard?msg=sin_cupos")
 
@@ -221,17 +225,17 @@ def dashboard():
             cedula_eliminar = request.form['cedula_eliminar']
             if delete_inquilino(user['email'], cedula_eliminar):
                 return redirect("/dashboard")
-    
+
     plan = user.get('plan', 'N/A') or 'N/A'
     filas = ""
-    for i in inquilinos:
+    for i inquilinos:
         estado = i.get('estado','')
         badge_class = "badge-pendiente" if "pendiente" in estado else "badge-activo" if estado == "activo" else "badge-disputa"
-        filas += f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('pagos_tiempo','')}/{i.get('meses_totales','')} meses</td><td>{i.get('dias_atraso','')} días</td><td><span class="badge {badge_class}">{estado}</span></td><td><form method="post" style="margin:0;"><input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}"><button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Eliminar?')">X</button></form></td></tr>"""
+        filas += f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('pagos_tiempo','')}/{i.get('meses_totales','')} meses</td><td>{i.get('dias_atraso','')} días</td><td><span class="badge {badge_class}">{estado}</span></td><td><form method="post" style="margin:0;"><input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}"><button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Eliminar de tu perfil? En Base Universal queda registrado')">X</button></form></td></tr>"""
 
     alerta = ""
-    if request.args.get('msg') == 'correo_enviado':
-        alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px; margin-bottom:15px;'>Correo enviado al inquilino. Tiene 7 días para aceptar o disputar.</div>"
+    if request.args.get('msg') == 'reportado':
+        alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px; margin-bottom:15px;'>Inquilino reportado. Ya quedó en Base Universal y se envió correo.</div>"
     if request.args.get('msg') == 'sin_cupos':
         alerta = f"<div style='padding:10px; background:#e74c3c; color:white; border-radius:8px; margin-bottom:15px;'>Ya llegaste al límite de {limite} arriendos de tu plan</div>"
 
