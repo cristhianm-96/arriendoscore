@@ -88,17 +88,47 @@ def get_user(email):
         if str(u.get('email','')).strip() == email and str(u.get('estado','')) == 'activo': return u
     return None
 
-def get_inquilinos(email_usuario):
+def get_reportes(email_usuario):
     try:
-        todos = sheet.worksheet("Inquilinos").get_all_records()
+        todos = sheet.worksheet("Reportes").get_all_records()
         return [i for i in todos if str(i.get('email_propietario','')) == email_usuario]
     except: return []
 
-def add_inquilino(data):
+def add_reporte(data):
     fecha = datetime.datetime.now().strftime("%Y-%m-%d")
-    sheet.worksheet("Inquilinos").append_row([data['email_propietario'], data['nombre'], data['cedula'], data['celular'], data['correo'], data['fecha_pago'], data['reporte'], data['info_adicional'], fecha])
-    sheet.worksheet("Autorizaciones").append_row([data['email_propietario'], data['cedula'], data['nombre'], "Autoriza registro", fecha])
-    sheet.worksheet("Reportes").append_row([data['cedula'], data['nombre'], data['reporte'], data['email_propietario'], fecha, data['info_adicional']])
+    
+    # 1. Guardar en Reportes - tu base personal
+    sheet.worksheet("Reportes").append_row([
+        data['email_propietario'], data['nombre'], data['cedula'], data['celular'], 
+        data['correo'], data['fecha_pago'], data['reporte'], data['info_adicional'], fecha
+    ])
+    
+    # 2. Guardar en Autorizaciones - Habeas Data
+    sheet.worksheet("Autorizaciones").append_row([
+        data['email_propietario'], data['cedula'], data['nombre'], "Autoriza registro", fecha
+    ])
+
+    # 3. Guardar/Actualizar en Base_Universal - Para que todos consulten
+    try:
+        base_ws = sheet.worksheet("Base_Universal")
+        base = base_ws.get_all_records()
+        existe = False
+        for idx, persona in enumerate(base):
+            if str(persona.get('cedula','')).strip() == data['cedula']:
+                existe = True
+                fila = idx + 2
+                base_ws.update_cell(fila, 2, data['nombre'])
+                base_ws.update_cell(fila, 3, data['reporte'])
+                base_ws.update_cell(fila, 4, data['email_propietario'])
+                base_ws.update_cell(fila, 5, fecha)
+                break
+        
+        if not existe:
+            base_ws.append_row([
+                data['cedula'], data['nombre'], data['reporte'], data['email_propietario'], fecha
+            ])
+    except Exception as e:
+        print("Error guardando en Base_Universal:", e)
 
 @app.route("/")
 def login():
@@ -155,20 +185,20 @@ def dashboard():
             cupos_totales = int(user.get('cupos_totales', 0) or 0)
             cupos_usados = int(user.get('cupos_usados', 0) or 0)
             if cupos_totales - cupos_usados > 0:
-                add_inquilino(data)
+                add_reporte(data)
                 ws = sheet.worksheet("Usuarios"); cell = ws.find(user['email'])
                 ws.update_cell(cell.row, 7, cupos_usados + 1)
                 user['cupos_usados'] = cupos_usados + 1; session['user'] = user; return redirect("/dashboard")
     
-    inquilinos = get_inquilinos(user['email'])
+    reportes = get_reportes(user['email'])
     cupos_disp = int(user.get('cupos_totales',0) or 0) - int(user.get('cupos_usados',0) or 0)
     plan = user.get('plan', 'N/A') or 'N/A'
     
     filas = ""
-    for i in inquilinos:  # <-- YA CORREGIDO
+    for i in reportes:
         filas += f"<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('celular','')}</td><td>{i.get('correo','')}</td><td>{i.get('fecha_pago','')}</td><td>{i.get('reporte','')}</td><td>{i.get('info_adicional','')}</td></tr>"
     
-    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2><h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div><div class="info-item"><b>Número de Arriendos:</b> {len(inquilinos)}</div></div>
+    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2><h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div><div class="info-item"><b>Número de Reportes:</b> {len(reportes)}</div></div>
     
     <h3>3. Consulta Base Universal</h3>
     <form method="post" style="display:flex; gap:10px; align-items:center; margin-bottom:20px;">
@@ -177,7 +207,7 @@ def dashboard():
     </form>
     {mensaje_consulta}
     
-    <h3>2. Gestión de Inquilinos</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button name="btn_agregar" class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=7>No hay inquilinos</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
+    <h3>2. Gestión de Reportes</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button name="btn_agregar" class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=7>No hay reportes</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
 
 @app.route("/logout")
 def logout(): session.clear(); return redirect("/")
