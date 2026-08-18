@@ -91,8 +91,6 @@ def get_user(email):
     users = sheet.worksheet("Usuarios").get_all_records()
     for u in users:
         if str(u.get('email','')).strip() == email and str(u.get('estado','')) == 'activo':
-            u['cupos_totales'] = int(u.get('cupos_totales', 0) or 0)
-            u['cupos_usados'] = int(u.get('cupos_usados', 0) or 0)
             return u
     return None
 
@@ -106,7 +104,6 @@ def add_inquilino(data):
     token = str(uuid.uuid4())
     fecha = datetime.datetime.now().strftime("%Y-%m-%d")
     fecha_limite = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-    # CORREGIDO: 18 columnas con pagos_totales en posicion I
     sheet.worksheet("Inquilinos").append_row([
         data['email_propietario'], data['nombre'], data['cedula'], data['celular'],
         data['correo'], data['fecha_inicio'], data['fecha_fin'], data['meses_totales'],
@@ -118,25 +115,21 @@ def add_inquilino(data):
 
 def activar_inquilino(token, accion, comentario=""):
     ws = sheet.worksheet("Inquilinos")
-    ws_base = sheet.worksheet("Base_Universal") # NUEVO
+    ws_base = sheet.worksheet("Base_Universal")
     inquilinos = ws.get_all_records()
     for idx, i in enumerate(inquilinos):
         if str(i.get('token','')) == token and str(i.get('estado','')) == 'pendiente_7dias':
             fila = idx + 2
-            fila_completa = ws.row_values(fila) # Sacamos toda la fila de 18 columnas
+            fila_completa = ws.row_values(fila)
 
             if accion == "aceptar":
-                ws.update_cell(fila, 16, "activo") # P = estado
-                ws_base.append_row(fila_completa) # COPIA A BASE_UNIVERSAL
+                ws.update_cell(fila, 16, "activo")
+                ws_base.append_row(fila_completa)
             else:
                 ws.update_cell(fila, 16, "en_disputa")
-                ws.update_cell(fila, 18, comentario) # R = comentario_disputa
+                ws.update_cell(fila, 18, comentario)
 
-            ws.update_cell(fila, 17, "") # Q = borrar token
-            email_prop = i.get('email_propietario')
-            ws_user = sheet.worksheet("Usuarios"); cell = ws_user.find(email_prop)
-            cupos_usados = int(ws_user.cell(cell.row, 7).value or 0)
-            ws_user.update_cell(cell.row, 7, cupos_usados + 1)
+            ws.update_cell(fila, 17, "")
             return True
     return False
 
@@ -158,7 +151,7 @@ def login():
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
     if request.method == "GET":
-        return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><img src="/logo.jpeg" class="logo"><h2>Registro</h2><form method="post"><input name="nombre" placeholder="Nombre Completo / Razón Social" required><input name="celular" placeholder="Celular" required><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password" required><select name="rol" required><option value="">Seleccione tipo...</option><option value="arrendador">Arrendador - 3 consultas</option><option value="inmobiliaria">Inmobiliaria - 50 consultas</option></select><button>Crear Cuenta</button></form><a href="/">← Volver al Login</a></div></div>""")
+        return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><img src="/logo.jpeg" class="logo"><h2>Registro</h2><form method="post"><input name="nombre" placeholder="Nombre Completo / Razón Social" required><input name="celular" placeholder="Celular" required><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password" required><select name="rol" required><option value="">Seleccione tipo...</option><option value="arrendador">Arrendador - 3 arriendos</option><option value="inmobiliaria">Inmobiliaria - 50 arriendos</option></select><button>Crear Cuenta</button></form><a href="/">← Volver al Login</a></div></div>""")
     codigo = str(random.randint(100000, 999))
     crear_usuario_temp(request.form['email'], request.form['password'], request.form['nombre'], request.form['celular'], request.form['rol'], codigo)
     enviar_codigo(request.form['email'], codigo, request.form['nombre']); session['email_temp'] = request.form['email']; return redirect("/validar")
@@ -194,8 +187,14 @@ def login_post():
 def dashboard():
     user = session.get('user');
     if not user: return redirect("/")
-    user['cupos_totales'] = int(user.get('cupos_totales', 0) or 0)
-    user['cupos_usados'] = int(user.get('cupos_usados', 0) or 0)
+    
+    # DATOS DINAMICOS
+    inquilinos = get_inquilinos(user['email'])
+    num_arriendos = len(inquilinos)
+    
+    limite = 50 if user['rol'] == "inmobiliaria" else 3
+    arriendos_disponibles = limite - num_arriendos
+    
     mensaje_consulta = ""
     if request.method == "POST":
         if 'btn_consultar' in request.form:
@@ -209,18 +208,20 @@ def dashboard():
                     mensaje_consulta = f"<div style='padding:12px; background:#27ae60; color:white; border-radius:8px; margin:10px 0;'><b>Historial encontrado:</b> {historiales[0].get('nombre')}<br>{total_tiempo} de {total_meses} meses pagados a tiempo. Último atraso máx: {historiales[-1].get('dias_atraso')} días</div>"
                 else: mensaje_consulta = "<div style='padding:12px; background:#7f8c8d; color:white; border-radius:8px; margin:10px 0;'>Cédula sin historial en Base Universal</div>"
             except: mensaje_consulta = "<div style='padding:12px; background:#e74c3c; color:white; border-radius:8px; margin:10px 0;'>Error: Crea la pestaña Base_Universal</div>"
+        
         elif 'btn_agregar' in request.form:
-            data = request.form.to_dict(); data['email_propietario'] = user['email']
-            cupos_disp = user['cupos_totales'] - user['cupos_usados']
-            if cupos_disp > 0:
+            if arriendos_disponibles > 0:
+                data = request.form.to_dict(); data['email_propietario'] = user['email']
                 add_inquilino(data)
                 return redirect("/dashboard?msg=correo_enviado")
+            else:
+                return redirect("/dashboard?msg=sin_cupos")
+
         elif 'btn_eliminar' in request.form:
             cedula_eliminar = request.form['cedula_eliminar']
             if delete_inquilino(user['email'], cedula_eliminar):
                 return redirect("/dashboard")
-    inquilinos = get_inquilinos(user['email'])
-    cupos_disp = user['cupos_totales'] - user['cupos_usados']
+    
     plan = user.get('plan', 'N/A') or 'N/A'
     filas = ""
     for i in inquilinos:
@@ -228,10 +229,28 @@ def dashboard():
         badge_class = "badge-pendiente" if "pendiente" in estado else "badge-activo" if estado == "activo" else "badge-disputa"
         filas += f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('pagos_tiempo','')}/{i.get('meses_totales','')} meses</td><td>{i.get('dias_atraso','')} días</td><td><span class="badge {badge_class}">{estado}</span></td><td><form method="post" style="margin:0;"><input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}"><button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Eliminar?')">X</button></form></td></tr>"""
 
-    alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px; margin-bottom:15px;'>Correo enviado al inquilino. Tiene 7 días para aceptar o disputar.</div>" if request.args.get('msg') == 'correo_enviado' else ""
+    alerta = ""
+    if request.args.get('msg') == 'correo_enviado':
+        alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px; margin-bottom:15px;'>Correo enviado al inquilino. Tiene 7 días para aceptar o disputar.</div>"
+    if request.args.get('msg') == 'sin_cupos':
+        alerta = f"<div style='padding:10px; background:#e74c3c; color:white; border-radius:8px; margin-bottom:15px;'>Ya llegaste al límite de {limite} arriendos de tu plan</div>"
 
-    # CORREGIDO: Agregado campo pagos_totales al formulario
-    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2>{alerta}<h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div></div><h3>3. Consulta Historial Crediticio</h3><form method="post" style="display:flex; gap:10px; align-items:center; margin-bottom:20px;"><input name="cedula_consulta" placeholder="Digita cédula a consultar" required style="flex:1;"><button name="btn_consultar" style="width:auto; background:#2c3e50;">Consultar</button></form>{mensaje_consulta}<h3>2. Reportar Historial de Inquilino</h3><p style="font-size:12px; color:#6B7280;">Obligatorio: Contrato + Soportes de pago. El inquilino tendrá 7 días para responder.</p><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo Obligatorio" required><input name="fecha_inicio" type="date" placeholder="Inicio Contrato"><input name="fecha_fin" type="date" placeholder="Fin Contrato"><input name="meses_totales" type="number" placeholder="Meses Totales"><input name="pagos_totales" type="number" placeholder="Valor Total Pagado"><input name="pagos_tiempo" type="number" placeholder="Meses Pagados a Tiempo"><input name="dias_atraso" type="number" placeholder="Días Máx Atraso"><select name="paz_salvo"><option value="">¿Paz y Salvo?</option><option value="SI">SI</option><option value="NO">NO</option></select><input name="evidencias" placeholder="Link a Drive con evidencias"><button name="btn_agregar" class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Reportar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Historial</th><th>Máx Atraso</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=6>No hay inquilinos reportados</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
+    info_grid = f"""
+    <h3>1. Información de tu Cuenta</h3>
+    <div class="info-grid">
+        <div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div>
+        <div class="info-item"><b>Correo:</b> {user.get('email','')}</div>
+        <div class="info-item"><b>Celular:</b> {user.get('celular','')}</div>
+        <div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div>
+        <div class="info-item"><b>Plan:</b> {plan}</div>
+        <div class="info-item"><b>Número de Arriendos:</b> {num_arriendos}</div>
+        <div class="info-item"><b>Arriendos Disponibles:</b> {arriendos_disponibles}</div>
+    </div>
+    """
+
+    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2>{alerta}
+    {info_grid}
+    <h3>3. Consulta Historial Crediticio</h3><form method="post" style="display:flex; gap:10px; align-items:center; margin-bottom:20px;"><input name="cedula_consulta" placeholder="Digita cédula a consultar" required style="flex:1;"><button name="btn_consultar" style="width:auto; background:#2c3e50;">Consultar</button></form>{mensaje_consulta}<h3>2. Reportar Historial de Inquilino</h3><p style="font-size:12px; color:#6B7280;">Obligatorio: Contrato + Soportes de pago. El inquilino tendrá 7 días para responder.</p><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo Obligatorio" required><input name="fecha_inicio" type="date" placeholder="Inicio Contrato"><input name="fecha_fin" type="date" placeholder="Fin Contrato"><input name="meses_totales" type="number" placeholder="Meses Totales"><input name="pagos_totales" type="number" placeholder="Valor Total Pagado"><input name="pagos_tiempo" type="number" placeholder="Meses Pagados a Tiempo"><input name="dias_atraso" type="number" placeholder="Días Máx Atraso"><select name="paz_salvo"><option value="">¿Paz y Salvo?</option><option value="SI">SI</option><option value="NO">NO</option></select><input name="evidencias" placeholder="Link a Drive con evidencias"><button name="btn_agregar" class="btn-small" {'disabled' if arriendos_disponibles <= 0 else ''}>Reportar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Historial</th><th>Máx Atraso</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=6>No hay inquilinos reportados</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
 
 @app.route("/logout")
 def logout(): session.clear(); return redirect("/")
