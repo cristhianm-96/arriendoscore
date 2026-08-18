@@ -1,14 +1,12 @@
 from flask import Flask, request, session, redirect, render_template_string, send_from_directory
-import gspread, os, smtplib, random, datetime, uuid, threading
+import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import os, smtplib, random, datetime, uuid, threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = "datoarriendo_2026_segura"
-UPLOAD_FOLDER = 'uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 SHEET_ID = os.environ.get("SHEET_ID")
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.resend.com")
@@ -33,10 +31,7 @@ except Exception as e:
 @app.route('/logo.jpeg')
 def serve_logo(): return send_from_directory('.', 'logo.jpeg')
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename): return send_from_directory(UPLOAD_FOLDER, filename)
-
-CSS = """ <style> body {font-family: Arial; background: #f4f6f8; margin: 0; padding: 0;}.page-wrapper {min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;}.container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; max-width: 90%; text-align: center; margin-bottom: 30px;}.dashboard {background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; text-align: left; margin: 20px;}.logo {width: 120px; margin-bottom: 15px;} h2 {color: #2c3e50; margin-bottom: 20px; text-align: center;} h3 {color: #3498db; border-bottom: 2px solid #EBF5FB; padding-bottom: 10px;} input, select, textarea {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;} label {font-size: 12px; color: #555; text-align: left; display: block; margin-top: 5px;} button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px;} button:hover {background: #2980b9;} button:disabled {background: #95a5a6; cursor: not-allowed;}.btn-small {width: auto; padding: 8px 16px; font-size: 14px;}.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;}.btn-danger:hover {background: #c0392b;} a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;} a:hover {text-decoration: underline;}.info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}.info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;}.info-item b {color: #2c3e50;} table {width: 100%; border-collapse: collapse; margin-top: 15px;} th, td {padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; text-align: left;} th {background: #EBF5FB; color: #2c3e50;}.form-inline {display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;}.codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;}.badge {padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white;}.badge-pendiente {background: #f39c12;}.badge-activo {background: #27ae60;}.badge-disputa {background: #e74c3c;} @media (max-width: 900px) {.info-grid,.form-inline {grid-template-columns: 1fr;}} </style> """
+CSS = """ <style> body {font-family: Arial; background: #f4f6f8; margin: 0; padding: 0;}.page-wrapper {min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;}.container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; max-width: 90%; text-align: center; margin-bottom: 30px;}.dashboard {background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; text-align: left; margin: 20px;}.logo {width: 120px; margin-bottom: 15px;} h2 {color: #2c3e50; margin-bottom: 20px; text-align: center;} h3 {color: #3498db; border-bottom: 2px solid #EBF5FB; padding-bottom: 10px;} input, select, textarea {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;} label {font-size: 12px; color: #555; text-align: left; display: block; margin-top: 5px; font-weight: bold;} button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px;} button:hover {background: #2980b9;} button:disabled {background: #95a5a6; cursor: not-allowed;}.btn-small {width: auto; padding: 8px 16px; font-size: 14px;}.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;}.btn-danger:hover {background: #c0392b;} a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;} a:hover {text-decoration: underline;}.info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}.info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;}.info-item b {color: #2c3e50;} table {width: 100%; border-collapse: collapse; margin-top: 15px;} th, td {padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; text-align: left;} th {background: #EBF5FB; color: #2c3e50;}.form-inline {display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;}.codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;}.badge {padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white;}.badge-pendiente {background: #f39c12;}.badge-activo {background: #27ae60;}.badge-disputa {background: #e74c3c;} @media (max-width: 900px) {.info-grid,.form-inline {grid-template-columns: 1fr;}} </style> """
 
 def enviar_codigo(destinatario, codigo, nombre):
     def _enviar():
@@ -83,14 +78,10 @@ def get_arrendatarios(email_usuario):
     try: todos = sheet.worksheet("Arrendatarios").get_all_records(); return [i for i in todos if str(i.get('email_propietario','')).strip() == email_usuario]
     except: return []
 
-def add_arrendatario(data, archivo):
+def add_arrendatario(data):
     token = str(uuid.uuid4()); fecha = datetime.datetime.now().strftime("%Y-%m-%d")
     fecha_limite = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-    filename = ""
-    if archivo: filename = secure_filename(archivo.filename); archivo.save(os.path.join(UPLOAD_FOLDER, filename))
-    link_evidencia = f"{APP_URL}/uploads/{filename}" if filename else ""
-    
-    fila_completa = [data['email_propietario'], data['nombre'], data['cedula'], data['celular'], data['correo'], data['fecha_inicio'], data['fecha_fin'], data['meses_totales'], data['pagos_totales'], data['pagos_tiempo'], data['dias_atraso'], data['paz_salvo'], link_evidencia, fecha, fecha_limite, "activo", token, ""]
+    fila_completa = [data['email_propietario'], data['nombre'], data['cedula'], data['celular'], data['correo'], data['fecha_inicio'], data['fecha_fin'], data['meses_totales'], data['pagos_totales'], data['pagos_tiempo'], data['dias_atraso'], data['paz_salvo'], data['evidencias'], fecha, fecha_limite, "activo", token, ""]
     sheet.worksheet("Arrendatarios").append_row(fila_completa)
     sheet.worksheet("Base_Universal").append_row(fila_completa)
     if data['correo']: enviar_correo_validacion_arrendatario(data['correo'], data['nombre'], token, data)
@@ -165,8 +156,7 @@ def dashboard():
         elif 'btn_agregar' in request.form:
             if arriendos_disponibles > 0:
                 data = request.form.to_dict(); data['email_propietario'] = user['email']
-                archivo = request.files.get('evidencias')
-                add_arrendatario(data, archivo)
+                add_arrendatario(data)
                 return redirect("/dashboard?msg=reportado")
             else: return redirect("/dashboard?msg=sin_cupos")
 
@@ -175,7 +165,7 @@ def dashboard():
     
     plan = user.get('plan', 'N/A') or 'N/A'
     filas = ""
-    for i in arrendatarios: # YA CAMBIADO
+    for i in arrendatarios:
         estado = i.get('estado',''); badge_class = "badge-pendiente" if "pendiente" in estado else "badge-activo" if estado == "activo" else "badge-disputa"
         filas += f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('pagos_tiempo','')}/{i.get('meses_totales','')} meses</td><td>{i.get('dias_atraso','')} días</td><td><span class="badge {badge_class}">{estado}</span></td><td><form method="post"><input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}"><button name="btn_eliminar" class="btn-danger">X</button></form></td></tr>"""
 
@@ -185,7 +175,7 @@ def dashboard():
 
     info_grid = f"""<h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Número de Arriendos:</b> {num_arriendos}</div><div class="info-item"><b>Arriendos Disponibles:</b> {arriendos_disponibles}</div></div>"""
 
-    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><h2>Perfil de {user.get('nombre','')}</h2>{alerta}{info_grid}<h3>3. Consulta Historial Arrendatario</h3><form method="post"><input name="cedula_consulta" placeholder="Digita cédula a consultar" required><button name="btn_consultar">Consultar</button></form>{mensaje_consulta}<h3>2. Reportar Historial de Arrendatario</h3><p style="font-size:12px;">Obligatorio: Contrato + Soportes. El arrendatario tendrá 7 días para responder.</p><form method="post" class="form-inline" enctype="multipart/form-data"><input name="nombre" placeholder="Nombre Arrendatario" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo Obligatorio" required><label>Fecha Inicio Contrato</label><input name="fecha_inicio" type="date"><label>Fecha Fin Contrato</label><input name="fecha_fin" type="date"><input name="meses_totales" type="number" placeholder="Meses Totales"><input name="pagos_totales" type="number" placeholder="Valor Total Pagado"><input name="pagos_tiempo" type="number" placeholder="Meses Pagados a Tiempo"><input name="dias_atraso" type="number" placeholder="Días Máx Atraso"><select name="paz_salvo"><option value="">¿Paz y Salvo?</option><option value="SI">SI</option><option value="NO">NO</option></select><label>Subir Evidencias</label><input name="evidencias" type="file"><button name="btn_agregar" {'disabled' if arriendos_disponibles <= 0 else ''}>Reportar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Historial</th><th>Atraso</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=6>No hay arrendatarios reportados</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
+    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><h2>Perfil de {user.get('nombre','')}</h2>{alerta}{info_grid}<h3>3. Consulta Historial Arrendatario</h3><form method="post"><input name="cedula_consulta" placeholder="Digita cédula a consultar" required><button name="btn_consultar">Consultar</button></form>{mensaje_consulta}<h3>2. Reportar Historial de Arrendatario</h3><p style="font-size:12px;">Obligatorio: Contrato + Soportes. El arrendatario tendrá 7 días para responder.</p><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Arrendatario" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo Obligatorio" required><label>Fecha Inicio Contrato</label><input name="fecha_inicio" type="date"><label>Fecha Fin Contrato</label><input name="fecha_fin" type="date"><input name="meses_totales" type="number" placeholder="Meses Totales"><input name="pagos_totales" type="number" placeholder="Valor Total Pagado"><input name="pagos_tiempo" type="number" placeholder="Meses Pagados a Tiempo"><input name="dias_atraso" type="number" placeholder="Días Máx Atraso"><select name="paz_salvo"><option value="">¿Paz y Salvo?</option><option value="SI">SI</option><option value="NO">NO</option></select><input name="evidencias" placeholder="Link a Drive con evidencias: Contrato + Pagos"><button name="btn_agregar" {'disabled' if arriendos_disponibles <= 0 else ''}>Reportar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Historial</th><th>Atraso</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=6>No hay arrendatarios reportados</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
 
 @app.route("/logout")
 def logout(): session.clear(); return redirect("/")
