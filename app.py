@@ -1,7 +1,7 @@
 from flask import Flask, request, session, redirect, render_template_string, send_from_directory
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import os, smtplib, random, datetime, uuid, threading
+import os, smtplib, random, datetime, uuid
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -31,30 +31,32 @@ except Exception as e:
 @app.route('/logo.jpeg')
 def serve_logo(): return send_from_directory('.', 'logo.jpeg')
 
-CSS = """ <style> body {font-family: Arial; background: #f4f6f8; margin: 0; padding: 0;}.page-wrapper {min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;}.container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; max-width: 90%; text-align: center; margin-bottom: 30px;}.dashboard {background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; text-align: left; margin: 20px;}.logo {width: 120px; margin-bottom: 15px;} h2 {color: #2c3e50; margin-bottom: 20px; text-align: center;} h3 {color: #3498db; border-bottom: 2px solid #EBF5FB; padding-bottom: 10px;} input, select, textarea {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;} label {font-size: 12px; color: #555; text-align: left; display: block; margin-top: 5px; font-weight: bold;} button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px;} button:hover {background: #2980b9;} button:disabled {background: #95a5a6; cursor: not-allowed;}.btn-small {width: auto; padding: 8px 16px; font-size: 14px;}.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;}.btn-danger:hover {background: #c0392b;} a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;} a:hover {text-decoration: underline;}.info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}.info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;}.info-item b {color: #2c3e50;} table {width: 100%; border-collapse: collapse; margin-top: 15px;} th, td {padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; text-align: left;} th {background: #EBF5FB; color: #2c3e50;}.form-inline {display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;}.codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;}.badge {padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white;}.badge-pendiente {background: #f39c12;}.badge-activo {background: #27ae60;}.badge-disputa {background: #e74c3c;} @media (max-width: 900px) {.info-grid,.form-inline {grid-template-columns: 1fr;}} </style> """
+CSS = """ <style> body {font-family: Arial; background: #f4f6f8; margin: 0; padding: 0;}.page-wrapper {min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;}.container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; max-width: 90%; text-align: center; margin-bottom: 30px;}.dashboard {background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; text-align: left; margin: 20px;}.logo {width: 120px; margin-bottom: 15px;} h2 {color: #2c3e50; margin-bottom: 20px; text-align: center;} h3 {color: #3498db; border-bottom: 2px solid #EBF5FB; padding-bottom: 10px;} input, select, textarea {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;} label {font-size: 12px; color: #555; text-align: left; display: block; margin-top: 5px; font-weight: bold;} button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px;} button:hover {background: #2980b9;} button:disabled {background: #95a5a6; cursor: not-allowed;}.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;}.info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}.info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;} table {width: 100%; border-collapse: collapse; margin-top: 15px;} th, td {padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; text-align: left;} th {background: #EBF5FB; color: #2c3e50;}.form-inline {display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;}.codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;}.badge {padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white;}.badge-pendiente {background: #f39c12;}.badge-activo {background: #27ae60;}.badge-disputa {background: #e74c3c;} @media (max-width: 900px) {.info-grid,.form-inline {grid-template-columns: 1fr;}} </style> """
 
 def enviar_codigo(destinatario, codigo, nombre):
-    def _enviar():
-        if not EMAIL_USER or not EMAIL_PASS: return
+    if not EMAIL_USER or not EMAIL_PASS: return
+    try:
         cuerpo = f"<h2>Hola {nombre}</h2><p>Tu código de validación para DatoArriendo es:</p><p class='codigo'>{codigo}</p>"
         msg = MIMEMultipart(); msg['From'] = EMAIL_FROM; msg['To'] = destinatario; msg['Subject'] = "Código de validación - DatoArriendo"
         msg.attach(MIMEText(cuerpo, 'html'))
-        try: server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=10); server.starttls(); server.login(EMAIL_USER, EMAIL_PASS); server.sendmail(EMAIL_FROM, destinatario, msg.as_string()); server.quit()
-        except Exception as e: print("Error correo:", e)
-    threading.Thread(target=_enviar, daemon=True).start()
+        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=5) # Timeout de 5 seg
+        server.starttls(); server.login(EMAIL_USER, EMAIL_PASS); server.sendmail(EMAIL_FROM, destinatario, msg.as_string()); server.quit()
+        print(f"[OK] Codigo enviado a {destinatario}")
+    except Exception as e: print("Error correo:", e) # YA NO TUMBA EL SERVIDOR
 
 def enviar_correo_validacion_arrendatario(destinatario, nombre, token, datos_reporte):
-    def _enviar():
-        try:
-            link_aceptar = f"{APP_URL}/validar_arrendatario?token={token}&accion=aceptar"
-            link_disputa = f"{APP_URL}/validar_arrendatario?token={token}&accion=disputar"
-            asunto = "Tienes un reporte en DatoArriendo - 7 días para responder"
-            cuerpo = f"""<html><body><h2>Hola {nombre}</h2><p>Tu arrendador te ha registrado en <b>DatoArriendo</b></p><p><a href='{link_aceptar}'>Aceptar</a> <a href='{link_disputa}'>Disputar</a></p></body></html>"""
-            msg = MIMEMultipart(); msg['From'] = EMAIL_FROM; msg['To'] = destinatario; msg['Subject'] = asunto
-            msg.attach(MIMEText(cuerpo, 'html'))
-            server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=10); server.starttls(); server.login(EMAIL_USER, EMAIL_PASS); server.sendmail(EMAIL_FROM, destinatario, msg.as_string()); server.quit()
-        except Exception as e: print("Error correo arrendatario:", e)
-    threading.Thread(target=_enviar, daemon=True).start()
+    if not EMAIL_USER or not EMAIL_PASS: return
+    try:
+        link_aceptar = f"{APP_URL}/validar_arrendatario?token={token}&accion=aceptar"
+        link_disputa = f"{APP_URL}/validar_arrendatario?token={token}&accion=disputar"
+        asunto = "Tienes un reporte en DatoArriendo - 7 días para responder"
+        cuerpo = f"""<html><body><h2>Hola {nombre}</h2><p>Tu arrendador te ha registrado en <b>DatoArriendo</b></p><p><a href='{link_aceptar}'>Aceptar</a> <a href='{link_disputa}'>Disputar</a></p></body></html>"""
+        msg = MIMEMultipart(); msg['From'] = EMAIL_FROM; msg['To'] = destinatario; msg['Subject'] = asunto
+        msg.attach(MIMEText(cuerpo, 'html'))
+        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=5) # Timeout de 5 seg
+        server.starttls(); server.login(EMAIL_USER, EMAIL_PASS); server.sendmail(EMAIL_FROM, destinatario, msg.as_string()); server.quit()
+        print(f"[OK] Correo arrendatario enviado a {destinatario}")
+    except Exception as e: print("Error correo arrendatario:", e) # YA NO TUMBA EL SERVIDOR
 
 def crear_usuario_temp(email, password, nombre, celular, rol, codigo):
     if not sheet: return False
@@ -81,7 +83,7 @@ def get_arrendatarios(email_usuario):
 def add_arrendatario(data):
     token = str(uuid.uuid4()); fecha = datetime.datetime.now().strftime("%Y-%m-%d")
     fecha_limite = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-    fila_completa = [data['email_propietario'], data['nombre'], data['cedula'], data['celular'], data['correo'], data['fecha_inicio'], data['fecha_fin'], data['meses_totales'], data['pagos_totales'], data['pagos_tiempo'], data['dias_atraso'], data['paz_salvo'], data['evidencias'], fecha, fecha_limite, "activo", token, ""]
+    fila_completa = [data['email_propietario'], data['nombre'], data['cedula'], data['celular'], data['correo'], data['fecha_inicio'], data['fecha_fin'], data['meses_totales'], data['pagos_totales'], data['pagos_tiempo'], data['dias_atraso'], data['paz_salvo'], data['evidencias'], fecha, fecha_limite, "pendiente", token, ""] # Estado inicia en "pendiente"
     sheet.worksheet("Arrendatarios").append_row(fila_completa)
     sheet.worksheet("Base_Universal").append_row(fila_completa)
     if data['correo']: enviar_correo_validacion_arrendatario(data['correo'], data['nombre'], token, data)
@@ -170,7 +172,7 @@ def dashboard():
         filas += f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('pagos_tiempo','')}/{i.get('meses_totales','')} meses</td><td>{i.get('dias_atraso','')} días</td><td><span class="badge {badge_class}">{estado}</span></td><td><form method="post"><input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}"><button name="btn_eliminar" class="btn-danger">X</button></form></td></tr>"""
 
     alerta = ""
-    if request.args.get('msg') == 'reportado': alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px;'>Arrendatario reportado y guardado en Base Universal</div>"
+    if request.args.get('msg') == 'reportado': alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px;'>Arrendatario reportado. Se intentó enviar correo.</div>"
     if request.args.get('msg') == 'sin_cupos': alerta = f"<div style='padding:10px; background:#e74c3c; color:white; border-radius:8px;'>Límite de {limite} alcanzado</div>"
 
     info_grid = f"""<h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Número de Arriendos:</b> {num_arriendos}</div><div class="info-item"><b>Arriendos Disponibles:</b> {arriendos_disponibles}</div></div>"""
