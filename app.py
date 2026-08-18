@@ -1,7 +1,7 @@
 from flask import Flask, request, session, redirect, render_template_string, send_from_directory
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import os, smtplib, random, datetime, uuid
+import os, smtplib, random, datetime, uuid, threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -9,11 +9,11 @@ app = Flask(__name__)
 app.secret_key = "datoarriendo_2026_segura"
 
 SHEET_ID = os.environ.get("SHEET_ID")
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.resend.com") # Cambiado a Resend
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
-EMAIL_USER = os.environ.get("EMAIL_USER")
-EMAIL_PASS = os.environ.get("EMAIL_PASS")
-EMAIL_FROM = os.environ.get("EMAIL_FROM")
+EMAIL_USER = os.environ.get("EMAIL_USER", "resend") # Cambiado a resend
+EMAIL_PASS = os.environ.get("EMAIL_PASS") # Aquí va tu API key de Resend
+EMAIL_FROM = os.environ.get("EMAIL_FROM") # DatoArriendo <onboarding@resend.dev>
 APP_URL = os.environ.get("APP_URL", "https://arriendoscore.onrender.com")
 
 CREDS_PATH = "/etc/secrets/credentials.json"
@@ -35,31 +35,52 @@ def serve_logo():
 CSS = """ <style> body {font-family: Arial; background: #f4f6f8; margin: 0; padding: 0;} .page-wrapper {min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;} .container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; max-width: 90%; text-align: center; margin-bottom: 30px;} .dashboard {background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; text-align: left; margin: 20px;} .logo {width: 120px; margin-bottom: 15px;} h2 {color: #2c3e50; margin-bottom: 20px; text-align: center;} h3 {color: #3498db; border-bottom: 2px solid #EBF5FB; padding-bottom: 10px;} input, select {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;} button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px;} button:hover {background: #2980b9;} button:disabled {background: #95a5a6; cursor: not-allowed;} .btn-small {width: auto; padding: 8px 16px; font-size: 14px;} .btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;} .btn-danger:hover {background: #c0392b;} a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;} a:hover {text-decoration: underline;} .info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;} .info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;} .info-item b {color: #2c3e50;} table {width: 100%; border-collapse: collapse; margin-top: 15px;} th, td {padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; text-align: left;} th {background: #EBF5FB; color: #2c3e50;} .form-inline {display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;} .codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;} .footer-links {display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;} .footer-links a {font-size: 12px; color: #6B7280; margin: 0; display: inline;} .footer-links a:hover {color: #3498db;} @media (max-width: 900px) {.info-grid, .form-inline {grid-template-columns: 1fr;}} </style> """
 
 def enviar_codigo(destinatario, codigo, nombre):
-    if not EMAIL_USER or not EMAIL_PASS: return
-    cuerpo = f"<h2>Hola {nombre}</h2><p>Tu código de validación para DatoArriendo es:</p><p class='codigo'>{codigo}</p>"
-    msg = MIMEMultipart(); msg['From'] = EMAIL_FROM; msg['To'] = destinatario; msg['Subject'] = "Código de validación - DatoArriendo"
-    msg.attach(MIMEText(cuerpo, 'html'))
-    try:
-        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT); server.starttls(); server.login(EMAIL_USER, EMAIL_PASS); server.sendmail(EMAIL_FROM, destinatario, msg.as_string()); server.quit()
-    except Exception as e: print("Error correo:", e)
+    """Envía el código en segundo plano"""
+    def _enviar():
+        if not EMAIL_USER or not EMAIL_PASS: return
+        cuerpo = f"<h2>Hola {nombre}</h2><p>Tu código de validación para DatoArriendo es:</p><p class='codigo'>{codigo}</p>"
+        msg = MIMEMultipart(); msg['From'] = EMAIL_FROM; msg['To'] = destinatario; msg['Subject'] = "Código de validación - DatoArriendo"
+        msg.attach(MIMEText(cuerpo, 'html'))
+        try:
+            server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=10)
+            server.starttls(); server.login(EMAIL_USER, EMAIL_PASS); server.sendmail(EMAIL_FROM, destinatario, msg.as_string()); server.quit()
+            print(f"[OK] Codigo enviado a {destinatario}")
+        except Exception as e: print("Error correo:", e)
+    
+    threading.Thread(target=_enviar, daemon=True).start()
 
 def enviar_correo_validacion_inquilino(destinatario, nombre, token):
-    link = f"{APP_URL}/validar_inquilino?token={token}"
-    asunto = "Confirma tu registro en DatoArriendo"
-    cuerpo = f"""
-    <h2>Hola {nombre}</h2>
-    <p>Tu arrendador te ha registrado en <b>DatoArriendo</b>.</p>
-    <p>Por la Ley de Habeas Data, necesitamos tu autorización para aparecer en la base.</p>
-    <p>Haz click aquí para autorizar: <a href='{link}'>{link}</a></p>
-    <p>Si no fuiste tú, ignora este correo.</p>
-    """
-    msg = MIMEMultipart(); msg['From'] = EMAIL_FROM; msg['To'] = destinatario; msg['Subject'] = asunto
-    msg.attach(MIMEText(cuerpo, 'html'))
-    try:
-        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT); server.starttls(); server.login(EMAIL_USER, EMAIL_PASS); server.sendmail(EMAIL_FROM, destinatario, msg.as_string()); server.quit()
-        print(f"[OK] Correo validacion enviado a {destinatario}")
-        return True
-    except Exception as e: print("Error correo inquilino:", e); return False
+    """Envía el correo de validación en segundo plano para no bloquear"""
+    def _enviar():
+        try:
+            link = f"{APP_URL}/validar_inquilino?token={token}"
+            asunto = "Confirma tu registro en DatoArriendo"
+            cuerpo = f"""
+            <html><body style="font-family:Arial;">
+            <h2>Hola {nombre}</h2>
+            <p>Tu arrendador te ha registrado en <b>DatoArriendo</b>.</p>
+            <p>Por la Ley de Habeas Data, necesitamos tu autorización para aparecer en la base.</p>
+            <p><a href='{link}' style='padding:12px 20px; background:#3498db; color:white; text-decoration:none; border-radius:5px;'>Autorizar mi cuenta</a></p>
+            <p>Si no fuiste tú, ignora este correo.</p>
+            </body></html>
+            """
+            msg = MIMEMultipart(); 
+            msg['From'] = EMAIL_FROM
+            msg['To'] = destinatario
+            msg['Subject'] = asunto
+            msg.attach(MIMEText(cuerpo, 'html'))
+            
+            server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=10)
+            server.starttls()
+            server.login(EMAIL_USER, EMAIL_PASS)
+            server.sendmail(EMAIL_FROM, destinatario, msg.as_string())
+            server.quit()
+            print(f"[OK] Correo validacion enviado a {destinatario}")
+        except Exception as e: 
+            print("Error correo inquilino:", e)
+
+    threading.Thread(target=_enviar, daemon=True).start()
+    return True
 
 def crear_usuario_temp(email, password, nombre, celular, rol, codigo):
     if not sheet: return False
@@ -133,7 +154,7 @@ def login():
 def registro():
     if request.method == "GET":
         return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><img src="/logo.jpeg" class="logo"><h2>Registro</h2><form method="post"><input name="nombre" placeholder="Nombre Completo / Razón Social" required><input name="celular" placeholder="Celular" required><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password" required><select name="rol" required><option value="">Seleccione tipo...</option><option value="arrendador">Arrendador - 3 consultas</option><option value="inmobiliaria">Inmobiliaria - 50 consultas</option></select><button>Crear Cuenta</button></form><a href="/">← Volver al Login</a></div></div>""")
-    codigo = str(random.randint(100000, 999999))
+    codigo = str(random.randint(100000, 999))
     crear_usuario_temp(request.form['email'], request.form['password'], request.form['nombre'], request.form['celular'], request.form['rol'], codigo)
     enviar_codigo(request.form['email'], codigo, request.form['nombre']); session['email_temp'] = request.form['email']; return redirect("/validar")
 
@@ -194,7 +215,7 @@ def dashboard():
     cupos_disp = user['cupos_totales'] - user['cupos_usados']
     plan = user.get('plan', 'N/A') or 'N/A'
     filas = ""
-    for i in inquilinos:  # AQUI ESTABA EL ERROR
+    for i in inquilinos:
         filas += f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('celular','')}</td><td>{i.get('correo','')}</td><td>{i.get('fecha_pago','')}</td><td>{i.get('reporte','')}</td><td>{i.get('info_adicional','')}</td><td><form method="post" style="margin:0;"><input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}"><button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Eliminar?')">X</button></form></td></tr>"""
     
     alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px; margin-bottom:15px;'>Correo de validación enviado al inquilino. Aparecerá cuando autorice.</div>" if request.args.get('msg') == 'correo_enviado' else ""
