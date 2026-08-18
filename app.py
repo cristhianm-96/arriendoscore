@@ -41,7 +41,7 @@ button {width: 100%; padding: 12px; background: #3498db; color: white; border: n
 button:hover {background: #2980b9;}
 button:disabled {background: #95a5a6; cursor: not-allowed;}
 .btn-small {width: auto; padding: 8px 16px; font-size: 14px;}
-.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;}
+.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;}
 .btn-danger:hover {background: #c0392b;}
 a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;}
 .info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}
@@ -104,13 +104,8 @@ def add_reporte(data):
         data['email_propietario'], data['nombre'], data['cedula'], data['celular'], 
         data['correo'], data['fecha_pago'], data['reporte'], data['info_adicional'], fecha
     ])
-    
-    # 2. Guardar en Autorizaciones - Habeas Data
-    sheet.worksheet("Autorizaciones").append_row([
-        data['email_propietario'], data['cedula'], data['nombre'], "Autoriza registro", fecha
-    ])
 
-    # 3. Guardar/Actualizar en Base_Universal
+    # 2. Guardar/Actualizar en Base_Universal - NO SE BORRA DE AQUI NUNCA
     try:
         base_ws = sheet.worksheet("Base_Universal")
         base = base_ws.get_all_records()
@@ -187,9 +182,8 @@ def dashboard():
                         encontrado = persona
                         break
                 if encontrado:
-                    # CAMBIO 1: ROJO SI MOROSO, VERDE SI AL DIA
                     estado = encontrado.get('estado','').strip().lower()
-                    color = "#e74c3c" if estado == "moroso" else "#27ae60"
+                    color = "#e74c3c" if estado == "moroso" else "#27ae60" # ROJO MOROSO, VERDE AL DIA
                     mensaje_consulta = f"<div style='padding:12px; background:{color}; color:white; border-radius:8px; margin:10px 0;'><b>Resultado:</b> {encontrado.get('nombre')} está <b>{encontrado.get('estado')}</b></div>"
                 else:
                     mensaje_consulta = "<div style='padding:12px; background:#7f8c8d; color:white; border-radius:8px; margin:10px 0;'>Cédula sin reportes en Base Universal</div>"
@@ -203,12 +197,18 @@ def dashboard():
             if cupos_totales - cupos_usados > 0:
                 add_reporte(data)
                 ws = sheet.worksheet("Usuarios"); cell = ws.find(user['email'])
-                ws.update_cell(cell.row, 7, cupos_usados + 1)
+                ws.update_cell(cell.row, 7, cupos_usados + 1) # +1 cupo usado
                 user['cupos_usados'] = cupos_usados + 1; session['user'] = user; return redirect("/dashboard")
         
-        elif 'btn_eliminar' in request.form: # CAMBIO 3: ELIMINAR
+        elif 'btn_eliminar' in request.form:
             cedula_eliminar = request.form['cedula_eliminar']
             if delete_reporte(user['email'], cedula_eliminar):
+                # Devolver cupo al eliminar
+                ws = sheet.worksheet("Usuarios"); cell = ws.find(user['email'])
+                cupos_usados = int(user.get('cupos_usados', 0) or 0)
+                if cupos_usados > 0:
+                    ws.update_cell(cell.row, 7, cupos_usados - 1) # -1 cupo usado
+                    user['cupos_usados'] = cupos_usados - 1; session['user'] = user
                 return redirect("/dashboard")
 
     
@@ -218,7 +218,6 @@ def dashboard():
     
     filas = ""
     for i in reportes:
-        # CAMBIO 3: BOTON ELIMINAR EN CADA FILA
         filas += f"""<tr>
         <td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('celular','')}</td>
         <td>{i.get('correo','')}</td><td>{i.get('fecha_pago','')}</td><td>{i.get('reporte','')}</td>
@@ -226,7 +225,7 @@ def dashboard():
         <td>
             <form method="post" style="margin:0;">
                 <input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}">
-                <button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Seguro que quieres eliminar este reporte?')">X</button>
+                <button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Seguro que quieres eliminar este reporte de tu perfil? No se borrara de la Base Universal')">X</button>
             </form>
         </td>
         </tr>"""
