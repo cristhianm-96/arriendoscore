@@ -41,6 +41,8 @@ button {width: 100%; padding: 12px; background: #3498db; color: white; border: n
 button:hover {background: #2980b9;}
 button:disabled {background: #95a5a6; cursor: not-allowed;}
 .btn-small {width: auto; padding: 8px 16px; font-size: 14px;}
+.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;}
+.btn-danger:hover {background: #c0392b;}
 a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;}
 .info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}
 .info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;}
@@ -108,7 +110,7 @@ def add_reporte(data):
         data['email_propietario'], data['cedula'], data['nombre'], "Autoriza registro", fecha
     ])
 
-    # 3. Guardar/Actualizar en Base_Universal - Para que todos consulten
+    # 3. Guardar/Actualizar en Base_Universal
     try:
         base_ws = sheet.worksheet("Base_Universal")
         base = base_ws.get_all_records()
@@ -129,6 +131,18 @@ def add_reporte(data):
             ])
     except Exception as e:
         print("Error guardando en Base_Universal:", e)
+
+def delete_reporte(email_usuario, cedula):
+    try:
+        ws = sheet.worksheet("Reportes")
+        reportes = ws.get_all_records()
+        for idx, r in enumerate(reportes):
+            if str(r.get('email_propietario','')) == email_usuario and str(r.get('cedula','')) == cedula:
+                ws.delete_rows(idx + 2) # +2 por encabezado
+                return True
+    except Exception as e:
+        print("Error eliminando:", e)
+    return False
 
 @app.route("/")
 def login():
@@ -173,7 +187,9 @@ def dashboard():
                         encontrado = persona
                         break
                 if encontrado:
-                    color = "#c0392b" if encontrado.get('estado') == "Moroso" else "#27ae60"
+                    # CAMBIO 1: ROJO SI MOROSO, VERDE SI AL DIA
+                    estado = encontrado.get('estado','').strip().lower()
+                    color = "#e74c3c" if estado == "moroso" else "#27ae60"
                     mensaje_consulta = f"<div style='padding:12px; background:{color}; color:white; border-radius:8px; margin:10px 0;'><b>Resultado:</b> {encontrado.get('nombre')} está <b>{encontrado.get('estado')}</b></div>"
                 else:
                     mensaje_consulta = "<div style='padding:12px; background:#7f8c8d; color:white; border-radius:8px; margin:10px 0;'>Cédula sin reportes en Base Universal</div>"
@@ -189,6 +205,12 @@ def dashboard():
                 ws = sheet.worksheet("Usuarios"); cell = ws.find(user['email'])
                 ws.update_cell(cell.row, 7, cupos_usados + 1)
                 user['cupos_usados'] = cupos_usados + 1; session['user'] = user; return redirect("/dashboard")
+        
+        elif 'btn_eliminar' in request.form: # CAMBIO 3: ELIMINAR
+            cedula_eliminar = request.form['cedula_eliminar']
+            if delete_reporte(user['email'], cedula_eliminar):
+                return redirect("/dashboard")
+
     
     reportes = get_reportes(user['email'])
     cupos_disp = int(user.get('cupos_totales',0) or 0) - int(user.get('cupos_usados',0) or 0)
@@ -196,7 +218,18 @@ def dashboard():
     
     filas = ""
     for i in reportes:
-        filas += f"<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('celular','')}</td><td>{i.get('correo','')}</td><td>{i.get('fecha_pago','')}</td><td>{i.get('reporte','')}</td><td>{i.get('info_adicional','')}</td></tr>"
+        # CAMBIO 3: BOTON ELIMINAR EN CADA FILA
+        filas += f"""<tr>
+        <td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('celular','')}</td>
+        <td>{i.get('correo','')}</td><td>{i.get('fecha_pago','')}</td><td>{i.get('reporte','')}</td>
+        <td>{i.get('info_adicional','')}</td>
+        <td>
+            <form method="post" style="margin:0;">
+                <input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}">
+                <button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Seguro que quieres eliminar este reporte?')">X</button>
+            </form>
+        </td>
+        </tr>"""
     
     return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2><h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div><div class="info-item"><b>Número de Reportes:</b> {len(reportes)}</div></div>
     
@@ -207,7 +240,7 @@ def dashboard():
     </form>
     {mensaje_consulta}
     
-    <h3>2. Gestión de Reportes</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button name="btn_agregar" class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=7>No hay reportes</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
+    <h3>2. Gestión de Reportes</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button name="btn_agregar" class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th><th>Acción</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=8>No hay reportes</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
 
 @app.route("/logout")
 def logout(): session.clear(); return redirect("/")
