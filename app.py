@@ -87,25 +87,28 @@ def activar_usuario(email, codigo):
 def get_user(email):
     users = sheet.worksheet("Usuarios").get_all_records()
     for u in users:
-        if str(u.get('email','')).strip() == email and str(u.get('estado','')) == 'activo': return u
+        if str(u.get('email','')).strip() == email and str(u.get('estado','')) == 'activo': 
+            u['cupos_totales'] = int(u.get('cupos_totales', 0) or 0)
+            u['cupos_usados'] = int(u.get('cupos_usados', 0) or 0)
+            return u
     return None
 
-def get_reportes(email_usuario):
+def get_inquilinos(email_usuario):
     try:
-        todos = sheet.worksheet("Reportes").get_all_records()
-        return [i for i in todos if str(i.get('email_propietario','')) == email_usuario]
+        todos = sheet.worksheet("Inquilinos").get_all_records() # CAMBIO AQUI
+        return [i for i in todos if str(i.get('email_propietario','')).strip() == email_usuario]
     except: return []
 
-def add_reporte(data):
+def add_inquilino(data):
     fecha = datetime.datetime.now().strftime("%Y-%m-%d")
     
-    # 1. Guardar en Reportes - tu base personal
-    sheet.worksheet("Reportes").append_row([
+    # 1. Guardar en Inquilinos - tu base personal
+    sheet.worksheet("Inquilinos").append_row([
         data['email_propietario'], data['nombre'], data['cedula'], data['celular'], 
         data['correo'], data['fecha_pago'], data['reporte'], data['info_adicional'], fecha
     ])
 
-    # 2. Guardar/Actualizar en Base_Universal - NO SE BORRA DE AQUI NUNCA
+    # 2. Guardar/Actualizar en Base_Universal
     try:
         base_ws = sheet.worksheet("Base_Universal")
         base = base_ws.get_all_records()
@@ -127,13 +130,13 @@ def add_reporte(data):
     except Exception as e:
         print("Error guardando en Base_Universal:", e)
 
-def delete_reporte(email_usuario, cedula):
+def delete_inquilino(email_usuario, cedula):
     try:
-        ws = sheet.worksheet("Reportes")
-        reportes = ws.get_all_records()
-        for idx, r in enumerate(reportes):
+        ws = sheet.worksheet("Inquilinos") # CAMBIO AQUI
+        inquilinos = ws.get_all_records()
+        for idx, r in enumerate(inquilinos):
             if str(r.get('email_propietario','')) == email_usuario and str(r.get('cedula','')) == cedula:
-                ws.delete_rows(idx + 2) # +2 por encabezado
+                ws.delete_rows(idx + 2)
                 return True
     except Exception as e:
         print("Error eliminando:", e)
@@ -141,7 +144,7 @@ def delete_reporte(email_usuario, cedula):
 
 @app.route("/")
 def login():
-    return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><img src="/logo.jpeg" class="logo"><h2>DatoArriendo</h2><form method="post" action="/login"><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password" required><button>Entrar</button></form><a href="/registro">¿No tienes cuenta? Regístrate aquí</a></div><div class="trust-section"><div class="trust-card"><div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><h4>Información 100% Segura</h4><p>Cumplimos con la Ley 1581 de Habeas Data.</p></div><div class="trust-card"><div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h4>Evita Arrendatarios Morosos</h4><p>Consulta reportes antes de firmar.</p></div><div class="trust-card"><div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><h4>Usado por Inmobiliarias</h4><p>Verificación rápida y confiable.</p></div></div></div>""")
+    return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><img src="/logo.jpeg" class="logo"><h2>DatoArriendo</h2><form method="post" action="/login"><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password" required><button>Entrar</button></form><a href="/registro">¿No tienes cuenta? Regístrate aquí</a></div></div>""")
 
 @app.route("/registro", methods=["GET", "POST"])
 def registro():
@@ -170,6 +173,9 @@ def dashboard():
     user = session.get('user');
     if not user: return redirect("/")
     
+    user['cupos_totales'] = int(user.get('cupos_totales', 0) or 0)
+    user['cupos_usados'] = int(user.get('cupos_usados', 0) or 0)
+    
     mensaje_consulta = ""
     if request.method == "POST":
         if 'btn_consultar' in request.form:
@@ -183,7 +189,7 @@ def dashboard():
                         break
                 if encontrado:
                     estado = encontrado.get('estado','').strip().lower()
-                    color = "#e74c3c" if estado == "moroso" else "#27ae60" # ROJO MOROSO, VERDE AL DIA
+                    color = "#e74c3c" if estado == "moroso" else "#27ae60"
                     mensaje_consulta = f"<div style='padding:12px; background:{color}; color:white; border-radius:8px; margin:10px 0;'><b>Resultado:</b> {encontrado.get('nombre')} está <b>{encontrado.get('estado')}</b></div>"
                 else:
                     mensaje_consulta = "<div style='padding:12px; background:#7f8c8d; color:white; border-radius:8px; margin:10px 0;'>Cédula sin reportes en Base Universal</div>"
@@ -192,32 +198,28 @@ def dashboard():
 
         elif 'btn_agregar' in request.form:
             data = request.form.to_dict(); data['email_propietario'] = user['email']
-            cupos_totales = int(user.get('cupos_totales', 0) or 0)
-            cupos_usados = int(user.get('cupos_usados', 0) or 0)
-            if cupos_totales - cupos_usados > 0:
-                add_reporte(data)
+            cupos_disp = user['cupos_totales'] - user['cupos_usados']
+            if cupos_disp > 0:
+                add_inquilino(data)
                 ws = sheet.worksheet("Usuarios"); cell = ws.find(user['email'])
-                ws.update_cell(cell.row, 7, cupos_usados + 1) # +1 cupo usado
-                user['cupos_usados'] = cupos_usados + 1; session['user'] = user; return redirect("/dashboard")
+                ws.update_cell(cell.row, 7, user['cupos_usados'] + 1)
+                user['cupos_usados'] += 1; session['user'] = user; return redirect("/dashboard")
         
         elif 'btn_eliminar' in request.form:
             cedula_eliminar = request.form['cedula_eliminar']
-            if delete_reporte(user['email'], cedula_eliminar):
-                # Devolver cupo al eliminar
+            if delete_inquilino(user['email'], cedula_eliminar):
                 ws = sheet.worksheet("Usuarios"); cell = ws.find(user['email'])
-                cupos_usados = int(user.get('cupos_usados', 0) or 0)
-                if cupos_usados > 0:
-                    ws.update_cell(cell.row, 7, cupos_usados - 1) # -1 cupo usado
-                    user['cupos_usados'] = cupos_usados - 1; session['user'] = user
+                if user['cupos_usados'] > 0:
+                    ws.update_cell(cell.row, 7, user['cupos_usados'] - 1)
+                    user['cupos_usados'] -= 1; session['user'] = user
                 return redirect("/dashboard")
 
-    
-    reportes = get_reportes(user['email'])
-    cupos_disp = int(user.get('cupos_totales',0) or 0) - int(user.get('cupos_usados',0) or 0)
+    inquilinos = get_inquilinos(user['email'])
+    cupos_disp = user['cupos_totales'] - user['cupos_usados']
     plan = user.get('plan', 'N/A') or 'N/A'
     
     filas = ""
-    for i in reportes:
+    for i in inquilinos:
         filas += f"""<tr>
         <td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('celular','')}</td>
         <td>{i.get('correo','')}</td><td>{i.get('fecha_pago','')}</td><td>{i.get('reporte','')}</td>
@@ -225,12 +227,12 @@ def dashboard():
         <td>
             <form method="post" style="margin:0;">
                 <input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}">
-                <button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Seguro que quieres eliminar este reporte de tu perfil? No se borrara de la Base Universal')">X</button>
+                <button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Eliminar de tu perfil? No se borra de Base Universal')">X</button>
             </form>
         </td>
         </tr>"""
     
-    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2><h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div><div class="info-item"><b>Número de Reportes:</b> {len(reportes)}</div></div>
+    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2><h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div><div class="info-item"><b>Número de Inquilinos:</b> {len(inquilinos)}</div></div>
     
     <h3>3. Consulta Base Universal</h3>
     <form method="post" style="display:flex; gap:10px; align-items:center; margin-bottom:20px;">
@@ -239,7 +241,7 @@ def dashboard():
     </form>
     {mensaje_consulta}
     
-    <h3>2. Gestión de Reportes</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button name="btn_agregar" class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th><th>Acción</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=8>No hay reportes</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
+    <h3>2. Gestión de Inquilinos</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button name="btn_agregar" class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th><th>Acción</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=8>No hay inquilinos</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
 
 @app.route("/logout")
 def logout(): session.clear(); return redirect("/")
