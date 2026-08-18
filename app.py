@@ -130,25 +130,56 @@ def login_post():
 def dashboard():
     user = session.get('user');
     if not user: return redirect("/")
+    
+    mensaje_consulta = "" # NUEVO
     if request.method == "POST":
-        data = request.form.to_dict(); data['email_propietario'] = user['email']
-        cupos_totales = int(user.get('cupos_totales', 0) or 0)
-        cupos_usados = int(user.get('cupos_usados', 0) or 0)
-        if cupos_totales - cupos_usados > 0:
-            add_inquilino(data)
-            ws = sheet.worksheet("Usuarios"); cell = ws.find(user['email'])
-            ws.update_cell(cell.row, 7, cupos_usados + 1)
-            user['cupos_usados'] = cupos_usados + 1; session['user'] = user; return redirect("/dashboard")
+        # NUEVO: LOGICA DE CONSULTAR
+        if 'btn_consultar' in request.form:
+            cedula_buscar = request.form['cedula_consulta']
+            try:
+                base = sheet.worksheet("Base_Universal").get_all_records()
+                encontrado = None
+                for persona in base:
+                    if str(persona.get('cedula','')).strip() == cedula_buscar:
+                        encontrado = persona
+                        break
+                if encontrado:
+                    color = "#c0392b" if encontrado.get('estado') == "Moroso" else "#27ae60"
+                    mensaje_consulta = f"<div style='padding:12px; background:{color}; color:white; border-radius:8px; margin:10px 0;'><b>Resultado:</b> {encontrado.get('nombre')} está <b>{encontrado.get('estado')}</b></div>"
+                else:
+                    mensaje_consulta = "<div style='padding:12px; background:#7f8c8d; color:white; border-radius:8px; margin:10px 0;'>Cédula sin reportes en Base Universal</div>"
+            except:
+                mensaje_consulta = "<div style='padding:12px; background:#e74c3c; color:white; border-radius:8px; margin:10px 0;'>Error: Crea la pestaña Base_Universal</div>"
+
+        # TU LOGICA ACTUAL DE AGREGAR
+        elif 'btn_agregar' in request.form:
+            data = request.form.to_dict(); data['email_propietario'] = user['email']
+            cupos_totales = int(user.get('cupos_totales', 0) or 0)
+            cupos_usados = int(user.get('cupos_usados', 0) or 0)
+            if cupos_totales - cupos_usados > 0:
+                add_inquilino(data)
+                ws = sheet.worksheet("Usuarios"); cell = ws.find(user['email'])
+                ws.update_cell(cell.row, 7, cupos_usados + 1)
+                user['cupos_usados'] = cupos_usados + 1; session['user'] = user; return redirect("/dashboard")
     
     inquilinos = get_inquilinos(user['email'])
     cupos_disp = int(user.get('cupos_totales',0) or 0) - int(user.get('cupos_usados',0) or 0)
     plan = user.get('plan', 'N/A') or 'N/A'
     
     filas = ""
-    for i in inquilinos:  # AQUI ESTABA EL ERROR
+    for i inquilinos:
         filas += f"<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('celular','')}</td><td>{i.get('correo','')}</td><td>{i.get('fecha_pago','')}</td><td>{i.get('reporte','')}</td><td>{i.get('info_adicional','')}</td></tr>"
     
-    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2><h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div><div class="info-item"><b>Número de Arriendos:</b> {len(inquilinos)}</div></div><h3>2. Gestión de Inquilinos</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=7>No hay inquilinos</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
+    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2><h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div><div class="info-item"><b>Número de Arriendos:</b> {len(inquilinos)}</div></div>
+    
+    <h3>3. Consulta Base Universal</h3> <!-- NUEVO -->
+    <form method="post" style="display:flex; gap:10px; align-items:center; margin-bottom:20px;">
+        <input name="cedula_consulta" placeholder="Digita cédula a validar" required style="flex:1;">
+        <button name="btn_consultar" style="width:auto; background:#2c3e50;">Consultar</button>
+    </form>
+    {mensaje_consulta} <!-- NUEVO -->
+    
+    <h3>2. Gestión de Inquilinos</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button name="btn_agregar" class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=7>No hay inquilinos</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
 
 @app.route("/logout")
 def logout(): session.clear(); return redirect("/")
