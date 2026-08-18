@@ -85,19 +85,20 @@ def activar_usuario(email, codigo):
 def get_user(email):
     users = sheet.worksheet("Usuarios").get_all_records()
     for u in users:
-        if u['email'] == email and u['estado'] == 'activo': return u
+        if str(u.get('email','')).strip() == email and str(u.get('estado','')) == 'activo': return u
     return None
 
 def get_inquilinos(email_usuario):
-    todos = sheet.worksheet("Inquilinos").get_all_records()
-    return [i for i in todos if i['email_propietario'] == email_usuario]
+    try:
+        todos = sheet.worksheet("Inquilinos").get_all_records()
+        return [i for i in todos if str(i.get('email_propietario','')) == email_usuario]
+    except: return []
 
 def add_inquilino(data):
     fecha = datetime.datetime.now().strftime("%Y-%m-%d")
     sheet.worksheet("Inquilinos").append_row([data['email_propietario'], data['nombre'], data['cedula'], data['celular'], data['correo'], data['fecha_pago'], data['reporte'], data['info_adicional'], fecha])
     sheet.worksheet("Autorizaciones").append_row([data['email_propietario'], data['cedula'], data['nombre'], "Autoriza registro", fecha])
     sheet.worksheet("Reportes").append_row([data['cedula'], data['nombre'], data['reporte'], data['email_propietario'], fecha, data['info_adicional']])
-    return True
 
 @app.route("/")
 def login():
@@ -116,14 +117,14 @@ def validar():
     email = session.get('email_temp');
     if request.method == "POST":
         if activar_usuario(email, request.form['codigo']): session.pop('email_temp'); return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><h2>Cuenta Activada!</h2><a href='/'>Ir a Login</a></div></div>""")
-        else: return "Código incorrecto <a href='/validar'>Intentar</a>"
+        else: return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><h2>Código incorrecto</h2><a href='/validar'>Intentar</a></div></div>""")
     return render_template_string(CSS + f"""<div class="page-wrapper"><div class="container"><h2>Valida tu correo</h2><p>Código enviado a: <b>{email}</b></p><form method="post"><input name="codigo" placeholder="Código de 6 dígitos" required><button>Validar</button></form></div></div>""")
 
 @app.route("/login", methods=["POST"])
 def login_post():
     user = get_user(request.form['email'])
-    if user and str(user['password']) == request.form['password']: session['user'] = user; return redirect("/dashboard")
-    return "Login inválido <a href='/'>Volver</a>"
+    if user and str(user.get('password','')) == request.form['password']: session['user'] = user; return redirect("/dashboard")
+    return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><h2>Error</h2><p>Login inválido</p><a href='/'>Volver</a></div></div>""")
 
 @app.route("/dashboard", methods=["GET", "POST"])
 def dashboard():
@@ -131,19 +132,23 @@ def dashboard():
     if not user: return redirect("/")
     if request.method == "POST":
         data = request.form.to_dict(); data['email_propietario'] = user['email']
-        if int(user['cupos_totales']) - int(user['cupos_usados']) > 0:
+        cupos_totales = int(user.get('cupos_totales', 0) or 0)
+        cupos_usados = int(user.get('cupos_usados', 0) or 0)
+        if cupos_totales - cupos_usados > 0:
             add_inquilino(data)
             ws = sheet.worksheet("Usuarios"); cell = ws.find(user['email'])
-            nuevos_usados = int(user['cupos_usados']) + 1; ws.update_cell(cell.row, 7, nuevos_usados)
-            user['cupos_usados'] = nuevos_usados; session['user'] = user; return redirect("/dashboard")
+            ws.update_cell(cell.row, 7, cupos_usados + 1)
+            user['cupos_usados'] = cupos_usados + 1; session['user'] = user; return redirect("/dashboard")
     
     inquilinos = get_inquilinos(user['email'])
-    cupos_disp = int(user['cupos_totales']) - int(user['cupos_usados'])
-    plan = user.get('plan', 'Plan Básico') # Por si viene vacío
+    cupos_disp = int(user.get('cupos_totales',0) or 0) - int(user.get('cupos_usados',0) or 0)
+    plan = user.get('plan', 'N/A') or 'N/A'
     
-    filas = "".join([f"<tr><td>{i['nombre']}</td><td>{i['cedula']}</td><td>{i['celular']}</td><td>{i['correo']}</td><td>{i['fecha_pago']}</td><td>{i['reporte']}</td><td>{i['info_adicional']}</td></tr>" for i inquilinos])
+    filas = ""
+    for i in inquilinos:  # AQUI ESTABA EL ERROR
+        filas += f"<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('celular','')}</td><td>{i.get('correo','')}</td><td>{i.get('fecha_pago','')}</td><td>{i.get('reporte','')}</td><td>{i.get('info_adicional','')}</td></tr>"
     
-    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user['nombre']}</h2><h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user['nombre']}</div><div class="info-item"><b>Correo:</b> {user['email']}</div><div class="info-item"><b>Celular:</b> {user['celular']}</div><div class="info-item"><b>Rol:</b> {user['rol'].capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div><div class="info-item"><b>Número de Arriendos:</b> {len(inquilinos)}</div></div><h3>2. Gestión de Inquilinos</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=7>No hay inquilinos</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
+    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2><h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Consultas Disponibles:</b> {cupos_disp}</div><div class="info-item"><b>Número de Arriendos:</b> {len(inquilinos)}</div></div><h3>2. Gestión de Inquilinos</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Inquilino" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><input name="fecha_pago" type="date"><input name="reporte" placeholder="Reporte: Al día / Moroso"><input name="info_adicional" placeholder="Info Adicional" style="grid-column: span 3;"><button class="btn-small" {'disabled' if cupos_disp <= 0 else ''}>Agregar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Fecha Pago</th><th>Reporte</th><th>Info</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=7>No hay inquilinos</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
 
 @app.route("/logout")
 def logout(): session.clear(); return redirect("/")
