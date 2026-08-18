@@ -32,9 +32,128 @@ except Exception as e:
 def serve_logo():
     return send_from_directory('.', 'logo.jpeg')
 
-CSS = """ <style> body {font-family: Arial; background: #f4f6f8; margin: 0; padding: 0;}.page-wrapper {min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;}.container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; max-width: 90%; text-align: center; margin-bottom: 30px;}.dashboard {background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; text-align: left; margin: 20px;}.logo {width: 120px; margin-bottom: 15px;} h2 {color: #2c3e50; margin-bottom: 20px; text-align: center;} h3 {color: #3498db; border-bottom: 2px solid #EBF5FB; padding-bottom: 10px;} input, select, textarea {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;} button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px;} button:hover {background: #2980b9;} button:disabled {background: #95a5a6; cursor: not-allowed;}.btn-small {width: auto; padding: 8px 16px; font-size: 14px;}.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;}.btn-danger:hover {background: #c039b2;} a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;} a:hover {text-decoration: underline;}.info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}.info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;}.info-item b {color: #2c3e50;} table {width: 100%; border-collapse: collapse; margin-top: 15px;} th, td {padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; text-align: left;} th {background: #EBF5FB; color: #2c3e50;}.form-inline {display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;}.codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;}.footer-links {display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;}.footer-links a {font-size: 12px; color: #6B7280; margin: 0; display: inline;}.footer-links a:hover {color: #3498db;}.badge {padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white;}.badge-pendiente {background: #f39c12;}.badge-activo {background: #27ae60;}.badge-disputa {background: #e74c3c;} @media (max-width: 900px) {.info-grid,.form-inline {grid-template-columns: 1fr;}} </style> """
+CSS = """ <style> body {font-family: Arial; background: #f4f6f8; margin: 0; padding: 0;}.page-wrapper {min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;}.container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; max-width: 90%; text-align: center; margin-bottom: 30px;}.dashboard {background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; text-align: left; margin: 20px;}.logo {width: 120px; margin-bottom: 15px;} h2 {color: #2c3e50; margin-bottom: 20px; text-align: center;} h3 {color: #3498db; border-bottom: 2px solid #EBF5FB; padding-bottom: 10px;} input, select, textarea {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;} button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px;} button:hover {background: #2980b9;} button:disabled {background: #95a5a6; cursor: not-allowed;}.btn-small {width: auto; padding: 8px 16px; font-size: 14px;}.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;}.btn-danger:hover {background: #c0392b;} a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;} a:hover {text-decoration: underline;}.info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}.info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;}.info-item b {color: #2c3e50;} table {width: 100%; border-collapse: collapse; margin-top: 15px;} th, td {padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; text-align: left;} th {background: #EBF5FB; color: #2c3e50;}.form-inline {display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;}.codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;}.footer-links {display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;}.footer-links a {font-size: 12px; color: #6B7280; margin: 0; display: inline;}.footer-links a:hover {color: #3498db;}.badge {padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white;}.badge-pendiente {background: #f39c12;}.badge-activo {background: #27ae60;}.badge-disputa {background: #e74c3c;} @media (max-width: 900px) {.info-grid,.form-inline {grid-template-columns: 1fr;}} </style> """
 
-# ... el resto de funciones igual ...
+def enviar_codigo(destinatario, codigo, nombre):
+    def _enviar():
+        if not EMAIL_USER or not EMAIL_PASS: return
+        cuerpo = f"<h2>Hola {nombre}</h2><p>Tu código de validación para DatoArriendo es:</p><p class='codigo'>{codigo}</p>"
+        msg = MIMEMultipart(); msg['From'] = EMAIL_FROM; msg['To'] = destinatario; msg['Subject'] = "Código de validación - DatoArriendo"
+        msg.attach(MIMEText(cuerpo, 'html'))
+        try:
+            server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=10)
+            server.starttls(); server.login(EMAIL_USER, EMAIL_PASS); server.sendmail(EMAIL_FROM, destinatario, msg.as_string()); server.quit()
+            print(f"[OK] Codigo enviado a {destinatario}")
+        except Exception as e: print("Error correo:", e)
+    threading.Thread(target=_enviar, daemon=True).start()
+
+def enviar_correo_validacion_inquilino(destinatario, nombre, token, datos_reporte):
+    def _enviar():
+        try:
+            link_aceptar = f"{APP_URL}/validar_inquilino?token={token}&accion=aceptar"
+            link_disputa = f"{APP_URL}/validar_inquilino?token={token}&accion=disputar"
+            asunto = "Tienes un reporte en DatoArriendo - 7 días para responder"
+            cuerpo = f"""<html><body><h2>Hola {nombre}</h2><p>Tu arrendador te ha registrado en <b>DatoArriendo</b></p><p><a href='{link_aceptar}'>Aceptar</a> <a href='{link_disputa}'>Disputar</a></p></body></html>"""
+            msg = MIMEMultipart(); msg['From'] = EMAIL_FROM; msg['To'] = destinatario; msg['Subject'] = asunto
+            msg.attach(MIMEText(cuerpo, 'html'))
+            server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT, timeout=10)
+            server.starttls(); server.login(EMAIL_USER, EMAIL_PASS); server.sendmail(EMAIL_FROM, destinatario, msg.as_string()); server.quit()
+        except Exception as e: print("Error correo inquilino:", e)
+    threading.Thread(target=_enviar, daemon=True).start()
+
+def crear_usuario_temp(email, password, nombre, celular, rol, codigo):
+    if not sheet: return False
+    cupos = 50 if rol == "inmobiliaria" else 3
+    plan = "Plan Inmobiliaria" if rol == "inmobiliaria" else "Plan Básico"
+    sheet.worksheet("Usuarios").append_row([email, password, rol, nombre, celular, cupos, 0, "pendiente", codigo, plan])
+    return True
+
+def activar_usuario(email, codigo):
+    ws = sheet.worksheet("Usuarios"); cell = ws.find(email)
+    if cell and str(ws.cell(cell.row, 9).value) == codigo:
+        ws.update_cell(cell.row, 8, "activo"); ws.update_cell(cell.row, 9, ""); return True
+    return False
+
+def get_user(email):
+    users = sheet.worksheet("Usuarios").get_all_records()
+    for u in users:
+        if str(u.get('email','')).strip() == email and str(u.get('estado','')) == 'activo':
+            return u
+    return None
+
+def get_inquilinos(email_usuario):
+    try:
+        todos = sheet.worksheet("Inquilinos").get_all_records()
+        return [i for i in todos if str(i.get('email_propietario','')).strip() == email_usuario]
+    except: return []
+
+def add_inquilino(data):
+    token = str(uuid.uuid4())
+    fecha = datetime.datetime.now().strftime("%Y-%m-%d")
+    fecha_limite = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
+    fila_completa = [data['email_propietario'], data['nombre'], data['cedula'], data['celular'], data['correo'], data['fecha_inicio'], data['fecha_fin'], data['meses_totales'], data['pagos_totales'], data['pagos_tiempo'], data['dias_atraso'], data['paz_salvo'], data['evidencias'], fecha, fecha_limite, "activo", token, ""]
+    sheet.worksheet("Inquilinos").append_row(fila_completa)
+    sheet.worksheet("Base_Universal").append_row(fila_completa)
+    if data['correo']:
+        enviar_correo_validacion_inquilino(data['correo'], data['nombre'], token, data)
+
+def activar_inquilino(token, accion, comentario=""):
+    ws = sheet.worksheet("Inquilinos")
+    inquilinos = ws.get_all_records()
+    for idx, i in enumerate(inquilinos):
+        if str(i.get('token','')) == token:
+            fila = idx + 2
+            if accion == "aceptar": ws.update_cell(fila, 16, "activo")
+            else: ws.update_cell(fila, 16, "en_disputa"); ws.update_cell(fila, 18, comentario)
+            ws.update_cell(fila, 17, "")
+            return True
+    return False
+
+def delete_inquilino(email_usuario, cedula):
+    try:
+        ws = sheet.worksheet("Inquilinos")
+        inquilinos = ws.get_all_records()
+        for idx, r in enumerate(inquilinos):
+            if str(r.get('email_propietario','')) == email_usuario and str(r.get('cedula','')) == cedula:
+                ws.delete_rows(idx + 2)
+                return True
+    except Exception as e: print("Error eliminando:", e)
+    return False
+
+@app.route("/")
+def login():
+    return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><img src="/logo.jpeg" class="logo"><h2>DatoArriendo</h2><form method="post" action="/login"><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password" required><button>Entrar</button></form><a href="/registro">¿No tienes cuenta? Regístrate aquí</a></div></div>""")
+
+@app.route("/registro", methods=["GET", "POST"])
+def registro():
+    if request.method == "GET":
+        return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><h2>Registro</h2><form method="post"><input name="nombre" placeholder="Nombre" required><input name="celular" placeholder="Celular" required><input name="email" type="email" placeholder="Email" required><input name="password" type="password" placeholder="Password" required><select name="rol" required><option value="">Seleccione...</option><option value="arrendador">Arrendador - 3</option><option value="inmobiliaria">Inmobiliaria - 50</option></select><button>Crear Cuenta</button></form></div></div>""")
+    codigo = str(random.randint(100000, 999))
+    crear_usuario_temp(request.form['email'], request.form['password'], request.form['nombre'], request.form['celular'], request.form['rol'], codigo)
+    enviar_codigo(request.form['email'], codigo, request.form['nombre']); session['email_temp'] = request.form['email']; return redirect("/validar")
+
+@app.route("/validar", methods=["GET", "POST"])
+def validar():
+    email = session.get('email_temp');
+    if request.method == "POST":
+        if activar_usuario(email, request.form['codigo']): session.pop('email_temp'); return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><h2>Cuenta Activada!</h2><a href='/'>Ir a Login</a></div></div>""")
+        else: return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><h2>Código incorrecto</h2></div></div>""")
+    return render_template_string(CSS + f"""<div class="page-wrapper"><div class="container"><h2>Valida tu correo</h2><form method="post"><input name="codigo" placeholder="Código" required><button>Validar</button></form></div></div>""")
+
+@app.route("/validar_inquilino")
+def validar_inquilino():
+    token = request.args.get('token')
+    accion = request.args.get('accion')
+    comentario = request.args.get('comentario', '')
+    if activar_inquilino(token, accion, comentario):
+        return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><h2>Respuesta registrada</h2></div></div>""")
+    return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><h2>❌ Link Inválido</h2></div></div>""")
+
+@app.route("/login", methods=["POST"])
+def login_post():
+    user = get_user(request.form['email'])
+    if user and str(user.get('password','')) == request.form['password']: session['user'] = user; return redirect("/dashboard")
+    return render_template_string(CSS + """<div class="page-wrapper"><div class="container"><h2>Error</h2><p>Login inválido</p></div></div>""")
 
 @app.route("/dashboard", methods=["GET", "POST"])
 def dashboard():
@@ -43,19 +162,51 @@ def dashboard():
 
     inquilinos = get_inquilinos(user['email'])
     num_arriendos = len(inquilinos)
-
     limite = 50 if user['rol'] == "inmobiliaria" else 3
     arriendos_disponibles = limite - num_arriendos
 
-    # ... resto igual ...
+    mensaje_consulta = ""
+    if request.method == "POST":
+        if 'btn_consultar' in request.form:
+            cedula_buscar = request.form['cedula_consulta']
+            try:
+                base = sheet.worksheet("Base_Universal").get_all_records()
+                historiales = [p for p in base if str(p.get('cedula','')).strip() == cedula_buscar and str(p.get('estado','')) == 'activo']
+                if historiales:
+                    total_meses = sum(int(h.get('meses_totales',0)) for h in historiales)
+                    total_tiempo = sum(int(h.get('pagos_tiempo',0)) for h in historiales)
+                    mensaje_consulta = f"<div style='padding:12px; background:#27ae60; color:white; border-radius:8px;'><b>Historial:</b> {historiales[0].get('nombre')}<br>{total_tiempo} de {total_meses} meses a tiempo</div>"
+                else: mensaje_consulta = "<div style='padding:12px; background:#7f8c8d; color:white; border-radius:8px;'>Sin historial</div>"
+            except: mensaje_consulta = "<div style='padding:12px; background:#e74c3c; color:white; border-radius:8px;'>Error Base_Universal</div>"
+        
+        elif 'btn_agregar' in request.form:
+            if arriendos_disponibles > 0:
+                data = request.form.to_dict(); data['email_propietario'] = user['email']
+                add_inquilino(data)
+                return redirect("/dashboard?msg=reportado")
+            else:
+                return redirect("/dashboard?msg=sin_cupos")
 
+        elif 'btn_eliminar' in request.form:
+            if delete_inquilino(user['email'], request.form['cedula_eliminar']):
+                return redirect("/dashboard")
+    
+    plan = user.get('plan', 'N/A') or 'N/A'
     filas = ""
-    for i inquilinos: # CORREGIDO: tenia "for i inquilinos"
+    for i inquilinos: # <-- AQUI ESTABA EL ERROR. YA TIENE EL "in"
         estado = i.get('estado','')
         badge_class = "badge-pendiente" if "pendiente" in estado else "badge-activo" if estado == "activo" else "badge-disputa"
-        filas += f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('pagos_tiempo','')}/{i.get('meses_totales','')} meses</td><td>{i.get('dias_atraso','')} días</td><td><span class="badge {badge_class}">{estado}</span></td><td><form method="post" style="margin:0;"><input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}"><button name="btn_eliminar" class="btn-danger" onclick="return confirm('¿Eliminar de tu perfil? En Base Universal queda registrado')">X</button></form></td></tr>"""
+        filas += f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('pagos_tiempo','')}/{i.get('meses_totales','')}</td><td>{i.get('dias_atraso','')}</td><td><span class="badge {badge_class}">{estado}</span></td><td><form method="post"><input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}"><button name="btn_eliminar" class="btn-danger">X</button></form></td></tr>"""
 
-    # ... resto igual ...
-    return render_template_string(CSS + f"""...""")
+    alerta = ""
+    if request.args.get('msg') == 'reportado': alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px;'>Reportado y guardado en Base Universal</div>"
+    if request.args.get('msg') == 'sin_cupos': alerta = f"<div style='padding:10px; background:#e74c3c; color:white; border-radius:8px;'>Límite de {limite} alcanzado</div>"
+
+    info_grid = f"""<h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Número de Arriendos:</b> {num_arriendos}</div><div class="info-item"><b>Arriendos Disponibles:</b> {arriendos_disponibles}</div></div>"""
+
+    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><h2>Perfil de {user.get('nombre','')}</h2>{alerta}{info_grid}<h3>3. Consulta</h3><form method="post"><input name="cedula_consulta" placeholder="Cédula" required><button name="btn_consultar">Consultar</button></form>{mensaje_consulta}<h3>2. Reportar</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre" required><input name="cedula" placeholder="Cédula" required><input name="correo" type="email" placeholder="Correo" required><input name="meses_totales" type="number"><input name="pagos_tiempo" type="number"><input name="dias_atraso" type="number"><button name="btn_agregar" {'disabled' if arriendos_disponibles <= 0 else ''}>Reportar</button></form><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Historial</th><th>Atraso</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{filas if filas else '<tr><td colspan=6>No hay inquilinos</td></tr>'}</tbody></table></div></div>""")
+
+@app.route("/logout")
+def logout(): session.clear(); return redirect("/")
 
 if __name__ == "__main__": app.run(host="0.0.0.0", port=10000)
