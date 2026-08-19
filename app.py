@@ -90,12 +90,10 @@ def add_arrendatario(data, estado="agregado"):
     token = str(uuid.uuid4())
     fecha = datetime.datetime.now().strftime("%Y-%m-%d")
     fecha_limite = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-    # Para "agregado" no vienen los campos de reporte
-    fila_completa = [data['email_propietario'], data.get('nombre',''), data.get('cedula',''), data.get('celular',''), data.get('correo',''), data.get('fecha_inicio',''), data.get('fecha_fin',''), data.get('meses_totales',''), data.get('pagos_totales',''), data.get('pagos_tiempo',''), data.get('dias_atraso',''), data.get('paz_salvo',''), data.get('evidencias',''), fecha, fecha_limite, estado, token, ""]
+    # Ahora al agregar le ponemos 0 en los campos para que si aparezca
+    fila_completa = [data['email_propietario'], data.get('nombre',''), data.get('cedula',''), data.get('celular',''), data.get('correo',''), data.get('fecha_inicio',''), data.get('fecha_fin',''), data.get('meses_totales','0'), data.get('pagos_totales','0'), data.get('pagos_tiempo','0'), data.get('dias_atraso','0'), data.get('paz_salvo',''), data.get('contrato_doc',''), fecha, fecha_limite, estado, token, ""]
     sheet.worksheet("Arrendatarios").append_row(fila_completa)
     sheet.worksheet("Base_Universal").append_row(fila_completa)
-    if estado == "activo" and data.get('correo'):
-        enviar_correo_validacion_arrendatario(data.get('correo'), data.get('nombre'), token, data)
 
 def reportar_arrendatario(email_propietario, cedula):
     ws = sheet.worksheet("Arrendatarios")
@@ -231,7 +229,7 @@ def dashboard():
         estado = i.get('estado','')
         badge_class = "badge-agregado" if estado == "agregado" else "badge-activo" if estado == "activo" else "badge-pendiente" if "pendiente" in estado else "badge-disputa"
 
-        fila_html = f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('pagos_tiempo','')}/{i.get('meses_totales','')} meses</td><td>{i.get('dias_atraso','')} días</td><td><span class="badge {badge_class}">{estado}</span></td><td>"""
+        fila_html = f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('pagos_tiempo','0')}/{i.get('meses_totales','0')} meses</td><td>{i.get('dias_atraso','0')} días</td><td><span class="badge {badge_class}">{estado}</span></td><td>"""
 
         if estado == "agregado":
             fila_html += f"""<form method="post" style="display:inline; margin-right:5px;"><input type="hidden" name="cedula_reportar" value="{i.get('cedula','')}"><button name="btn_reportar_tabla" class="btn-reportar" style="padding:5px 10px; font-size:12px;">Reportar</button></form>"""
