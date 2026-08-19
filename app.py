@@ -1,7 +1,7 @@
 from flask import Flask, request, session, redirect, render_template_string, send_from_directory
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import os, smtplib, random, datetime, uuid, threading
+import os, smtplib, random, datetime, uuid, threading, traceback
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -14,7 +14,6 @@ EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
 EMAIL_USER = os.environ.get("EMAIL_USER", "resend")
 EMAIL_PASS = os.environ.get("EMAIL_PASS")
 EMAIL_FROM = os.environ.get("EMAIL_FROM")
-APP_URL = os.environ.get("APP_URL", "https://arriendoscore.onrender.com")
 
 CREDS_PATH = "/etc/secrets/credentials.json"
 
@@ -32,7 +31,7 @@ except Exception as e:
 def serve_logo():
     return send_from_directory('.', 'logo.jpeg')
 
-CSS = """ <style> body {font-family: Arial; background: #f4f6f8; margin: 0; padding: 0;}.page-wrapper {min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;}.container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; max-width: 90%; text-align: center; margin-bottom: 30px;}.dashboard {background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; text-align: left; margin: 20px;}.logo {width: 120px; margin-bottom: 15px;} h2 {color: #2c3e50; margin-bottom: 20px; text-align: center;} h3 {color: #3498db; border-bottom: 2px solid #EBF5FB; padding-bottom: 10px;} input, select, textarea {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;} label {font-size: 12px; color: #555; text-align: left; display: block; margin-bottom: 3px; font-weight: bold;} button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px;} button:hover {background: #2980b9;} button:disabled {background: #95a5a6; cursor: not-allowed;}.btn-small {width: auto; padding: 8px 16px; font-size: 14px;}.btn-success {background: #27ae60;}.btn-success:hover {background: #229954;}.btn-reportar {background: #e67e22;}.btn-reportar:hover {background: #d35400;}.btn-link {background: #3498db; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; text-decoration: none;}.btn-link:hover {background: #2980b9;}.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;}.btn-danger:hover {background: #c0392b;} a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;} a:hover {text-decoration: underline;}.info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}.info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;}.info-item b {color: #2c3e50;} table {width: 100%; border-collapse: collapse; margin-top: 15px;} th, td {padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; text-align: left;} th {background: #EBF5FB; color: #2c3e50;}.form-inline {display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;}.codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;}.badge {padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white;}.badge-activo {background: #27ae60;}.badge-disputa {background: #e74c3c;} @media (max-width: 900px) {.info-grid,.form-inline {grid-template-columns: 1fr;}} </style> """
+CSS = """ <style> body {font-family: Arial; background: #f4f6f8; margin: 0; padding: 0;}.page-wrapper {min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px;}.container {background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; max-width: 90%; text-align: center; margin-bottom: 30px;}.dashboard {background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; text-align: left; margin: 20px;}.logo {width: 120px; margin-bottom: 15px;} h2 {color: #2c3e50; margin-bottom: 20px; text-align: center;} h3 {color: #3498db; border-bottom: 2px solid #EBF5FB; padding-bottom: 10px;} input, select, textarea {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;} label {font-size: 12px; color: #555; text-align: left; display: block; margin-bottom: 3px; font-weight: bold;} button {width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px;} button:hover {background: #2980b9;} button:disabled {background: #95a5a6; cursor: not-allowed;}.btn-small {width: auto; padding: 8px 16px; font-size: 14px;}.btn-success {background: #27ae60;}.btn-success:hover {background: #229954;}.btn-reportar {background: #e67e22;}.btn-reportar:hover {background: #d35400;}.btn-link {background: #3498db; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; text-decoration: none;}.btn-link:hover {background: #2980b9;}.btn-danger {background: #e74c3c; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;}.btn-danger:hover {background: #c0392b;} a {color: #3498db; text-decoration: none; display: block; margin-top: 15px; font-size: 14px;} a:hover {text-decoration: underline;}.info-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;}.info-item {background: #f8f9fa; padding: 12px; border-radius: 8px;}.info-item b {color: #2c3e50;} table {width: 100%; border-collapse: collapse; margin-top: 15px;} th, td {padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; text-align: left;} th {background: #EBF5FB; color: #2c3e50;}.form-inline {display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;}.codigo {font-size: 32px; letter-spacing: 8px; font-weight: bold; color: #3498db;}.badge {padding: 4px 8px; border-radius: 4px; font-size: 12px; color: white;}.badge-activo {background: #27ae60;} @media (max-width: 900px) {.info-grid,.form-inline {grid-template-columns: 1fr;}} </style> """
 
 def enviar_codigo(destinatario, codigo, nombre):
     def _enviar():
@@ -56,7 +55,7 @@ def crear_usuario_temp(email, password, nombre, celular, rol, codigo):
 def activar_usuario(email, codigo):
     ws = sheet.worksheet("Usuarios"); cell = ws.find(email)
     if cell and str(ws.cell(cell.row, 9).value) == codigo:
-        ws.update_cell(cell.row, 8, "activo"); ws.update_cell(cell.row, 9, ""); return True
+        ws.update_cell(cell.row, 8, "activo"); ws.cell(cell.row, 9).value = ""; return True
     return False
 
 def get_user(email):
@@ -70,6 +69,7 @@ def get_arrendatarios(email_usuario):
     try:
         ws = sheet.worksheet("Arrendatarios")
         todos = ws.get_all_values()
+        if len(todos) < 2: return []
         headers = todos[0]
         data = []
         for row in todos[1:]:
@@ -83,17 +83,24 @@ def get_arrendatarios(email_usuario):
         return []
 
 def add_arrendatario(data, estado="agregado"):
-    token = str(uuid.uuid4())
-    fecha = datetime.datetime.now().strftime("%Y-%m-%d")
-    fecha_limite = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
-    fila_completa = [
-        data['email_propietario'], data.get('nombre',''), data.get('cedula',''), data.get('celular',''), data.get('correo',''),
-        data.get('fecha_inicio',''), data.get('fecha_fin',''), data.get('meses_totales','0'), data.get('pagos_totales','0'),
-        data.get('pagos_tiempo','0'), data.get('dias_atraso','0'), data.get('paz_salvo',''), data.get('contrato_doc',''),
-        data.get('evidencias',''), fecha, fecha_limite, estado, token, ""
-    ]
-    sheet.worksheet("Arrendatarios").append_row(fila_completa)
-    sheet.worksheet("Base_Universal").append_row(fila_completa)
+    try:
+        token = str(uuid.uuid4())
+        fecha = datetime.datetime.now().strftime("%Y-%m-%d")
+        fecha_limite = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d")
+        fila_completa = [
+            data['email_propietario'], data.get('nombre',''), data.get('cedula',''), data.get('celular',''), data.get('correo',''),
+            data.get('fecha_inicio',''), data.get('fecha_fin',''), data.get('meses_totales','0'), data.get('pagos_totales','0'),
+            data.get('pagos_tiempo','0'), data.get('dias_atraso','0'), data.get('paz_salvo',''), data.get('contrato_doc',''),
+            data.get('evidencias',''), fecha, fecha_limite, estado, token, ""
+        ]
+        print(">>> GUARDANDO FILA:", fila_completa) # Para ver en logs de Render
+        sheet.worksheet("Arrendatarios").append_row(fila_completa)
+        sheet.worksheet("Base_Universal").append_row(fila_completa)
+        return True
+    except Exception as e:
+        print(">>> ERROR AL GUARDAR ARRENDATARIO:", e)
+        print(traceback.format_exc())
+        return False
 
 def reportar_arrendatario(email_propietario, cedula):
     ws = sheet.worksheet("Arrendatarios")
@@ -101,16 +108,9 @@ def reportar_arrendatario(email_propietario, cedula):
     headers = todos[0]
     for idx, row in enumerate(todos[1:]):
         if len(row) < len(headers): row += [''] * (len(headers) - len(row))
-        registro = dict(zip(headers, row))
-        if str(registro.get('email_propietario','')) == email_propietario and str(registro.get('cedula','')) == cedula:
+        if str(row[0]) == email_propietario and str(row[2]) == cedula:
             fila = idx + 2
-            ws.update_cell(fila, 17, "activo") # columna estado
-            ws_base = sheet.worksheet("Base_Universal")
-            base = ws_base.get_all_values()
-            for idx2, b in enumerate(base[1:]):
-                if len(b) < len(headers): b += [''] * (len(headers) - len(b))
-                if str(b[0]) == email_propietario and str(b[2]) == cedula:
-                    ws_base.update_cell(idx2 + 2, 17, "activo")
+            ws.update_cell(fila, 17, "activo")
             return True
     return False
 
@@ -178,24 +178,24 @@ def dashboard():
         elif 'btn_agregar' in request.form:
             if arriendos_disponibles > 0:
                 data = request.form.to_dict(); data['email_propietario'] = user['email']
-                add_arrendatario(data, estado="agregado")
-                return redirect("/dashboard?msg=agregado")
+                if add_arrendatario(data, estado="agregado"): # Se agrega automático
+                    return redirect("/dashboard?msg=agregado")
+                else:
+                    return redirect("/dashboard?msg=error_guardar")
             else:
                 return redirect("/dashboard?msg=sin_cupos")
 
-        elif 'btn_reportar_form' in request.form: # Reportar directo
+        elif 'btn_reportar_form' in request.form:
             if arriendos_disponibles > 0:
                 data = request.form.to_dict(); data['email_propietario'] = user['email']
-                add_arrendatario(data, estado="activo")
-                return redirect("/dashboard?msg=reportado")
+                if add_arrendatario(data, estado="activo"):
+                    return redirect("/dashboard?msg=reportado")
             else:
                 return redirect("/dashboard?msg=sin_cupos")
 
-        elif 'btn_reportar_tabla' in request.form: # Reportar desde agregados
+        elif 'btn_reportar_tabla' in request.form:
             if reportar_arrendatario(user['email'], request.form['cedula_reportar']):
                 return redirect("/dashboard?msg=reportado")
-            else:
-                return redirect("/dashboard?msg=error")
 
         elif 'btn_eliminar' in request.form:
             if delete_arrendatario(user['email'], request.form['cedula_eliminar']):
@@ -221,6 +221,7 @@ def dashboard():
     if request.args.get('msg') == 'agregado': alerta = "<div style='padding:10px; background:#3498db; color:white; border-radius:8px; margin-bottom:15px;'>Arrendatario agregado a tu perfil y Base Universal.</div>"
     if request.args.get('msg') == 'reportado': alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px; margin-bottom:15px;'>Arrendatario reportado.</div>"
     if request.args.get('msg') == 'sin_cupos': alerta = f"<div style='padding:10px; background:#e74c3c; color:white; border-radius:8px; margin-bottom:15px;'>Ya llegaste al límite de {limite} arriendos de tu plan</div>"
+    if request.args.get('msg') == 'error_guardar': alerta = "<div style='padding:10px; background:#e74c3c; color:white; border-radius:8px; margin-bottom:15px;'>Error al guardar. Revisa que tu Google Sheet tenga las 19 columnas.</div>"
 
     info_grid = f"""<h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Número de Arriendos:</b> {num_arriendos}</div><div class="info-item"><b>Arriendos Disponibles:</b> {arriendos_disponibles}</div></div>"""
 
