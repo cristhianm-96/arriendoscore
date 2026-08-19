@@ -59,7 +59,6 @@ def get_arrendatarios(email_usuario):
         print("Error get_arrendatarios:", e)
         return []
 
-# FUNCION NUEVA PARA LEER REPORTADOS
 def get_reportados_base(email_usuario):
     try:
         ws = sheet.worksheet("Base_Universal")
@@ -77,17 +76,23 @@ def get_reportados_base(email_usuario):
         print("Error get_reportados_base:", e)
         return []
 
-def add_arrendatario(data, estado="agregado"):
+def add_solo_arrendatario(data):
     try:
-        # 1. GUARDAR 10 COLUMNAS EN ARRENDATARIOS
+        # SOLO GUARDA EN ARRENDATARIOS - 10 COLUMNAS
         fila_arr = [
             data['email_propietario'], data.get('nombre',''), data.get('cedula',''), data.get('celular',''), data.get('correo',''),
             data.get('fecha_inicio',''), data.get('fecha_fin',''), data.get('meses_totales','0'), data.get('pagos_totales','0'),
             data.get('evidencias','')
         ]
         sheet.worksheet("Arrendatarios").append_row(fila_arr)
+        return True
+    except Exception as e:
+        print(">>> ERROR AL GUARDAR ARRENDATARIO:", e)
+        return False
 
-        # 2. GUARDAR 13 COLUMNAS EN BASE_UNIVERSAL
+def reportar_a_base(data):
+    try:
+        # SOLO GUARDA EN BASE_UNIVERSAL - 13 COLUMNAS
         fila_base = [
             data['email_propietario'], data.get('nombre',''), data.get('cedula',''), data.get('celular',''), data.get('correo',''),
             data.get('fecha_inicio',''), data.get('fecha_fin',''), data.get('meses_totales','0'), data.get('pagos_totales','0'),
@@ -96,7 +101,7 @@ def add_arrendatario(data, estado="agregado"):
         sheet.worksheet("Base_Universal").append_row(fila_base)
         return True
     except Exception as e:
-        print(">>> ERROR AL GUARDAR ARRENDATARIO:", e)
+        print(">>> ERROR AL REPORTAR:", e)
         return False
 
 def delete_arrendatario(email_usuario, cedula):
@@ -134,7 +139,7 @@ def dashboard():
     if not user: return redirect("/")
 
     arrendatarios = get_arrendatarios(user['email'])
-    reportados = get_reportados_base(user['email']) # LEER REPORTADOS
+    reportados = get_reportados_base(user['email'])
     
     num_arriendos = len(arrendatarios)
     limite = 50 if user['rol'] == "inmobiliaria" else 3
@@ -157,7 +162,7 @@ def dashboard():
         elif 'btn_agregar' in request.form:
             if arriendos_disponibles > 0:
                 data = request.form.to_dict(); data['email_propietario'] = user['email']
-                if add_arrendatario(data, estado="agregado"):
+                if add_solo_arrendatario(data):
                     return redirect("/dashboard?msg=agregado")
             else:
                 return redirect("/dashboard?msg=sin_cupos")
@@ -165,7 +170,7 @@ def dashboard():
         elif 'btn_reportar_form' in request.form:
             if arriendos_disponibles > 0:
                 data = request.form.to_dict(); data['email_propietario'] = user['email']
-                if add_arrendatario(data, estado="reportado"):
+                if reportar_a_base(data):
                     return redirect("/dashboard?msg=reportado")
 
         elif 'btn_eliminar' in request.form:
@@ -174,7 +179,6 @@ def dashboard():
 
     plan = user.get('plan', 'N/A') or 'N/A'
 
-    # TABLA 2.1 MIS ARRENDATARIOS
     filas_agregados = ""
     for i in arrendatarios:
         link_contrato = i.get('evidencias_contrato','')
@@ -182,7 +186,6 @@ def dashboard():
         fila_html = f"""<tr><td>{i.get('nombre','')}</td><td>{i.get('cedula','')}</td><td>{i.get('celular','')}</td><td>{i.get('fecha_inicio','')}</td><td>{i.get('fecha_fin','')}</td><td>{i.get('meses_totales','0')}</td><td>{btn_link}</td><td><form method="post" style="display:inline;"><input type="hidden" name="cedula_eliminar" value="{i.get('cedula','')}"><button name="btn_eliminar" class="btn-danger">X</button></form></td></tr>"""
         filas_agregados += fila_html
 
-    # TABLA 2.2 INQUILINOS REPORTADOS NUEVA
     filas_reportados = ""
     for i in reportados:
         link_contrato = i.get('evidencias_contrato','')
@@ -197,7 +200,7 @@ def dashboard():
 
     info_grid = f"""<h3>1. Información de tu Cuenta</h3><div class="info-grid"><div class="info-item"><b>Nombre:</b> {user.get('nombre','')}</div><div class="info-item"><b>Correo:</b> {user.get('email','')}</div><div class="info-item"><b>Celular:</b> {user.get('celular','')}</div><div class="info-item"><b>Rol:</b> {user.get('rol','').capitalize()}</div><div class="info-item"><b>Plan:</b> {plan}</div><div class="info-item"><b>Número de Arriendos:</b> {num_arriendos}</div><div class="info-item"><b>Arriendos Disponibles:</b> {arriendos_disponibles}</div></div>"""
 
-    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2>{alerta}{info_grid}<h3>3. Consulta Historial Arrendatario</h3><form method="post" style="display:flex; gap:10px; align-items:center; margin-bottom:20px;"><input name="cedula_consulta" placeholder="Digita cédula a consultar" required style="flex:1;"><button name="btn_consultar" style="width:auto; background:#2c3e50;">Consultar</button></form>{mensaje_consulta}<h3>1.5 Agregar Arrendatario</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Arrendatario" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><div><label>Fecha Inicio Contrato</label><input name="fecha_inicio" type="date"></div><div><label>Fecha Fin Contrato</label><input name="fecha_fin" type="date"></div><input name="meses_totales" type="number" placeholder="Meses Totales"><input name="pagos_totales" type="number" placeholder="Pagos Totales"><input name="evidencias" placeholder="Link Contrato/Documentos"><button name="btn_agregar" class="btn-small btn-success" {'disabled' if arriendos_disponibles <= 0 else ''}>Agregar</button></form><h3>2. Reportar Historial</h3><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Arrendatario" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><div><label>Fecha Inicio</label><input name="fecha_inicio" type="date"></div><div><label>Fecha Fin</label><input name="fecha_fin" type="date"></div><input name="meses_totales" type="number" placeholder="Meses Totales"><input name="pagos_totales" type="number" placeholder="Pagos Totales"><input name="pagos_tiempo" type="number" placeholder="Meses Pagados a Tiempo"><input name="dias_atraso" type="number" placeholder="Días Máx Atraso"><select name="paz_salvo"><option value="">¿Paz y Salvo?</option><option value="SI">SI</option><option value="NO">NO</option></select><input name="evidencias" placeholder="Link de evidencias"><button name="btn_reportar_form" class="btn-small btn-reportar" {'disabled' if arriendos_disponibles <= 0 else ''}>Reportar a Base</button></form><h3>2.1 Mis Arrendatarios</h3><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Meses Totales</th><th>Contrato</th><th>Acción</th></tr></thead><tbody>{filas_agregados if filas_agregados else '<tr><td colspan=8>No hay arrendatarios agregados</td></tr>'}</tbody></table><h3>2.2 Inquilinos Reportados en Base</h3><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Historial</th><th>Máx Atraso</th><th>Paz y Salvo</th><th>Evidencias</th></tr></thead><tbody>{filas_reportados if filas_reportados else '<tr><td colspan=6>No has reportado inquilinos aún</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
+    return render_template_string(CSS + f"""<div style="padding: 20px 0;"><div class="dashboard"><img src="/logo.jpeg" class="logo" style="margin: 0 auto 15px; display: block;"><h2>Perfil de {user.get('nombre','')}</h2>{alerta}{info_grid}<h3>3. Consulta Historial Arrendatario</h3><form method="post" style="display:flex; gap:10px; align-items:center; margin-bottom:20px;"><input name="cedula_consulta" placeholder="Digita cédula a consultar" required style="flex:1;"><button name="btn_consultar" style="width:auto; background:#2c3e50;">Consultar</button></form>{mensaje_consulta}<h3>1.5 Agregar Arrendatario</h3><p style="font-size:12px; color:#6B7280;">Solo se guarda en tu lista privada</p><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Arrendatario" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><div><label>Fecha Inicio Contrato</label><input name="fecha_inicio" type="date"></div><div><label>Fecha Fin Contrato</label><input name="fecha_fin" type="date"></div><input name="meses_totales" type="number" placeholder="Meses Totales"><input name="pagos_totales" type="number" placeholder="Pagos Totales"><input name="evidencias" placeholder="Link Contrato/Documentos"><button name="btn_agregar" class="btn-small btn-success" {'disabled' if arriendos_disponibles <= 0 else ''}>Agregar</button></form><h3>2. Reportar Historial por No Pago</h3><p style="font-size:12px; color:#6B7280;">Se publica en Base Universal para que otros lo consulten</p><form method="post" class="form-inline"><input name="nombre" placeholder="Nombre Arrendatario" required><input name="cedula" placeholder="Cédula" required><input name="celular" placeholder="Celular"><input name="correo" type="email" placeholder="Correo"><div><label>Fecha Inicio</label><input name="fecha_inicio" type="date"></div><div><label>Fecha Fin</label><input name="fecha_fin" type="date"></div><input name="meses_totales" type="number" placeholder="Meses Totales"><input name="pagos_totales" type="number" placeholder="Pagos Totales"><input name="pagos_tiempo" type="number" placeholder="Meses Pagados a Tiempo"><input name="dias_atraso" type="number" placeholder="Días Máx Atraso"><select name="paz_salvo"><option value="">¿Paz y Salvo?</option><option value="SI">SI</option><option value="NO">NO</option></select><input name="evidencias" placeholder="Link de evidencias"><button name="btn_reportar_form" class="btn-small btn-reportar" {'disabled' if arriendos_disponibles <= 0 else ''}>Reportar a Base</button></form><h3>2.1 Mis Arrendatarios</h3><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Fecha Inicio</th><th>Fecha Fin</th><th>Meses Totales</th><th>Contrato</th><th>Acción</th></tr></thead><tbody>{filas_agregados if filas_agregados else '<tr><td colspan=8>No hay arrendatarios agregados</td></tr>'}</tbody></table><h3>2.2 Inquilinos Reportados en Base</h3><table><thead><tr><th>Nombre</th><th>Cédula</th><th>Historial</th><th>Máx Atraso</th><th>Paz y Salvo</th><th>Evidencias</th></tr></thead><tbody>{filas_reportados if filas_reportados else '<tr><td colspan=6>No has reportado inquilinos aún</td></tr>'}</tbody></table><a href='/logout'>Salir</a></div></div>""")
 
 @app.route("/logout")
 def logout(): session.clear(); return redirect("/")
