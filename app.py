@@ -69,7 +69,8 @@ def get_reportados_base(email_usuario):
         for row in todos[1:]:
             if len(row) < len(headers): row += [''] * (len(headers) - len(row))
             registro = dict(zip(headers, row))
-            if str(registro.get('email_propietario','')).strip().lower() == email_usuario.strip().lower():
+            # SOLO MOSTRAR LOS REPORTADOS MANUALMENTE TIPO MALO
+            if str(registro.get('email_propietario','')).strip().lower() == email_usuario.strip().lower() and str(registro.get('tipo','MALO')) == 'MALO':
                 data.append(registro)
         return data
     except Exception as e:
@@ -86,12 +87,12 @@ def add_solo_arrendatario(data):
         ]
         sheet.worksheet("Arrendatarios").append_row(fila_arr)
 
-        # 2. TAMBIEN GUARDAR EN BASE_UNIVERSAL COMO "BUEN PAGADOR"
+        # 2. TAMBIEN GUARDAR EN BASE_UNIVERSAL COMO "BUENO" PARA HISTORIAL
         meses = int(data.get('meses_totales','0') or 0)
         fila_base = [
             data['email_propietario'], data.get('nombre',''), data.get('cedula',''), data.get('celular',''), data.get('correo',''),
             data.get('fecha_inicio',''), data.get('fecha_fin',''), data.get('meses_totales','0'), data.get('pagos_totales','0'),
-            str(meses), "0", "SI", data.get('evidencias','') # pagos_tiempo=meses, dias_atraso=0, paz_salvo=SI
+            str(meses), "0", "SI", data.get('evidencias',''), "BUENO" # NUEVA COLUMNA TIPO
         ]
         sheet.worksheet("Base_Universal").append_row(fila_base)
         return True
@@ -101,11 +102,11 @@ def add_solo_arrendatario(data):
 
 def reportar_a_base(data):
     try:
-        # SOLO GUARDA EN BASE_UNIVERSAL - 13 COLUMNAS. ESTO ES REPORTE POR IMPAGO
+        # SOLO GUARDA EN BASE_UNIVERSAL COMO "MALO" - REPORTE POR IMPAGO
         fila_base = [
             data['email_propietario'], data.get('nombre',''), data.get('cedula',''), data.get('celular',''), data.get('correo',''),
             data.get('fecha_inicio',''), data.get('fecha_fin',''), data.get('meses_totales','0'), data.get('pagos_totales','0'),
-            data.get('pagos_tiempo','0'), data.get('dias_atraso','0'), data.get('paz_salvo',''), data.get('evidencias','')
+            data.get('pagos_tiempo','0'), data.get('dias_atraso','0'), data.get('paz_salvo',''), data.get('evidencias',''), "MALO" # NUEVA COLUMNA TIPO
         ]
         sheet.worksheet("Base_Universal").append_row(fila_base)
         return True
@@ -203,7 +204,7 @@ def dashboard():
         filas_reportados += fila_html
 
     alerta = ""
-    if request.args.get('msg') == 'agregado': alerta = "<div style='padding:10px; background:#3498db; color:white; border-radius:8px; margin-bottom:15px;'>Arrendatario agregado y registrado en Base Universal como buen pagador.</div>"
+    if request.args.get('msg') == 'agregado': alerta = "<div style='padding:10px; background:#3498db; color:white; border-radius:8px; margin-bottom:15px;'>Arrendatario agregado correctamente.</div>"
     if request.args.get('msg') == 'reportado': alerta = "<div style='padding:10px; background:#2ecc71; color:white; border-radius:8px; margin-bottom:15px;'>Arrendatario reportado en Base Universal por impago.</div>"
     if request.args.get('msg') == 'sin_cupos': alerta = f"<div style='padding:10px; background:#e74c3c; color:white; border-radius:8px; margin-bottom:15px;'>Ya llegaste al límite de {limite} arriendos</div>"
 
